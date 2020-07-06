@@ -1,0 +1,9 @@
+boto3
+requests
+tqdm
+filelock
+torch
+numpy
+pymongo
+tape_proteins==0.4
+transformers
