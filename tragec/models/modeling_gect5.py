@@ -120,7 +120,6 @@ class GeCT5Model(GeCT5AbstractModel):
 
 
 @registry.register_task_model('masked_recon_modeling', 't5enc')
-@registry.register_task_model('masked_recon_modeling_raw', 't5enc')
 class GeCT5ForMaskedRecon(GeCT5AbstractModel):
 
     def __init__(self, config):
@@ -145,5 +144,5 @@ class GeCT5ForMaskedRecon(GeCT5AbstractModel):
         sequence_output = outputs[0]
 
         outputs = self.mrm(self.projection(sequence_output), targets)
-        # (loss), prediction_scores, (hidden_states)
+        # (loss, ), prediction_scores, (hidden_states)
         return outputs

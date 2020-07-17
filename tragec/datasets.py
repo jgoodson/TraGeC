@@ -68,7 +68,8 @@ class MaskedReconstructionDataset(Dataset):
                  data_path: Union[str, Path],
                  split: str,
                  in_memory: bool = False,
-                 seqvec_type: str = 'seqvec'):
+                 seqvec_type: str = 'seqvec',
+                 max_seq_len: int = 512):
         super().__init__()
         if split not in ('train', 'valid', 'holdout'):
             raise ValueError(
@@ -76,7 +77,7 @@ class MaskedReconstructionDataset(Dataset):
                 f"Must be one of ['train', 'valid', 'holdout']")
 
         data_path = Path(data_path)
-        data_file = f'refseq/map/refseq_{split}.lmdb'
+        data_file = f'refseq/map{max_seq_len}/refseq_{split}.lmdb'
         refseq_file = f'refseq/refseq.lmdb'
         seqvec_file = f'seqvec/{seqvec_type}.lmdb'
         self.data = LMDBDataset(data_path / data_file, )
@@ -167,84 +168,3 @@ class EmbedDataset(Dataset):
         gene_reps = torch.from_numpy(pad_sequences(gene_reps))
         input_mask = torch.from_numpy(pad_sequences(input_mask))
         return {'ids': ids, 'gene_reps': gene_reps, 'input_mask': input_mask}  # type: ignore
-
-
-@registry.register_task('masked_recon_modeling_raw')
-class MaskedReconstructionDataset2(Dataset):
-    """Creates the Masked Reconstruction Modeling RefSeq Dataset
-
-    Args:
-        data_path (Union[str, Path]): Path to tragec data root.
-        split (str): One of ['train', 'valid', 'holdout'], specifies which data file to load.
-        in_memory (bool, optional): Whether to load the full dataset into memory.
-            Default: False.
-    """
-
-    def __init__(self,
-                 data_path: Union[str, Path],
-                 split: str,
-                 in_memory: bool = False,
-                 seqvec_type: str = 'seqvec'):
-        super().__init__()
-        if split not in ('train', 'valid', 'holdout'):
-            raise ValueError(
-                f"Unrecognized split: {split}. "
-                f"Must be one of ['train', 'valid', 'holdout']")
-
-        data_path = Path(data_path)
-        data_file = f'refseq/refseq_{split}.lmdb'
-        array_decode = partial(np.frombuffer, dtype=np.float32)
-        self.data = LMDBDataset(data_path / data_file, decode_method=bson.decode)
-
-    def __len__(self) -> int:
-        return len(self.data)
-
-    def __getitem__(self, index):
-        data = self.data[index]
-        gene_reps = np.frombuffer(data['genereps'], dtype=np.float32).reshape((-1, 768))
-
-        masked_reps, targets = self._apply_pseudobert_mask(gene_reps)
-        input_mask = np.ones(len(masked_reps))
-
-        return masked_reps, input_mask, targets
-
-    @staticmethod
-    def collate_fn(batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray]]) -> Dict[str, torch.Tensor]:
-        gene_reps, input_mask, targets = tuple(zip(*batch))
-
-        gene_reps = torch.from_numpy(pad_sequences(gene_reps, 0))
-        input_mask = torch.from_numpy(pad_sequences(input_mask, 0))
-        # ignores all-0 representations
-        targets = torch.from_numpy(pad_sequences(targets, 0))
-
-        return {'gene_reps': gene_reps,
-                'input_mask': input_mask,
-                'targets': targets, }
-
-    @staticmethod
-    def _apply_pseudobert_mask(gene_reps: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        masked_gene_reps = copy(gene_reps)
-        rep_size = len(gene_reps[0])
-        targets = np.zeros_like(masked_gene_reps)
-
-        for i, gene_rep in enumerate(gene_reps):
-            # Tokens begin and end with start_token and stop_token, ignore these
-
-            prob = random.random()
-            if prob < 0.15:
-                prob /= 0.15
-                targets[i] = gene_rep
-
-                if prob < 0.8:
-                    # 80% random change to zero token
-                    gene_rep = np.zeros(rep_size)
-                elif prob < 0.9:
-                    # 10% chance to change to random representation
-                    gene_rep = np.random.normal(0, 1, rep_size)
-                else:
-                    # 10% chance to keep current representation
-                    pass
-
-                masked_gene_reps[i] = gene_rep
-
-        return np.array(masked_gene_reps), targets

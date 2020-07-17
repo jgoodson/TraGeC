@@ -118,7 +118,6 @@ class GeCBertModel(GeCBertAbstractModel):
 
 
 @registry.register_task_model('masked_recon_modeling', 'transformer')
-@registry.register_task_model('masked_recon_modeling_raw', 'transformer')
 class GeCBertForMaskedRecon(GeCBertAbstractModel):
 
     def __init__(self, config):
