@@ -14,6 +14,16 @@ from torch.utils.data import Dataset
 from .registry import registry
 
 
+class GeCDataset(Dataset):
+
+    def item_length(self, index):
+        return 0
+
+    @staticmethod
+    def collate_fn(batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray]]) -> Dict[str, torch.Tensor]:
+        pass
+
+
 class LMDBDataset(Dataset):
     """Creates a dataset from an lmdb file.
     Args:
@@ -54,7 +64,7 @@ class LMDBDataset(Dataset):
 
 
 @registry.register_task('masked_recon_modeling')
-class MaskedReconstructionDataset(Dataset):
+class MaskedReconstructionDataset(GeCDataset):
     """Creates the Masked Reconstruction Modeling RefSeq Dataset
 
     Args:
@@ -101,6 +111,11 @@ class MaskedReconstructionDataset(Dataset):
 
         return masked_reps, input_mask, targets
 
+    def item_length(self, index):
+        item = self.data[index]
+        refseq_id, locs = item['refseq'], item['indices']
+        return locs[1] - locs[0]
+
     @staticmethod
     def collate_fn(batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray]]) -> Dict[str, torch.Tensor]:
         gene_reps, input_mask, targets = tuple(zip(*batch))
@@ -144,7 +159,7 @@ class MaskedReconstructionDataset(Dataset):
 
 
 @registry.register_task('embed_gec')
-class EmbedDataset(Dataset):
+class EmbedDataset(GeCDataset):
 
     def __init__(self,
                  data_file: Union[str, Path],
@@ -160,6 +175,9 @@ class EmbedDataset(Dataset):
         gene_reps = item['primary']
         input_mask = np.ones(len(gene_reps))
         return item['id'], gene_reps, input_mask
+
+    def item_length(self, index):
+        return len(self[index])
 
     @staticmethod
     def collate_fn(batch: List[Tuple[Any, ...]]) -> Dict[str, torch.Tensor]:

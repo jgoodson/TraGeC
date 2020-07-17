@@ -7,7 +7,7 @@ import sys
 
 import torch
 import torch.distributed as dist
-from torch.utils.data import DataLoader, RandomSampler, Dataset
+from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 
 from apex.optimizers import FusedAdam as AdamW
@@ -16,6 +16,7 @@ from apex.optimizers import FusedNovoGrad as NovoGrad
 from apex.optimizers import FusedSGD as SGD
 
 from ..registry import registry
+from ..datasets import GeCDataset
 
 from tape.utils import get_effective_batch_size
 from ._sampler import BucketBatchSampler
@@ -102,15 +103,12 @@ def setup_dataset(task: str,
                   data_dir: typing.Union[str, Path],
                   split: str,
                   tokenizer: str,
-                  max_seq_len: int = None) -> Dataset:
+                  max_seq_len: int = None) -> GeCDataset:
     task_spec = registry.get_task_spec(task)
-    if max_seq_len:
-        return task_spec.dataset(data_dir, split, tokenizer, max_seq_len=max_seq_len)  # type: ignore
-    else:
-        return task_spec.dataset(data_dir, split, tokenizer)
+    return task_spec.dataset(data_dir, split, tokenizer, max_seq_len=max_seq_len)  # type: ignore
 
 
-def setup_loader(dataset: Dataset,
+def setup_loader(dataset: GeCDataset,
                  batch_size: int,
                  local_rank: int,
                  n_gpu: int,
@@ -119,17 +117,16 @@ def setup_loader(dataset: Dataset,
     sampler = DistributedSampler(dataset) if local_rank != -1 else RandomSampler(dataset)
     batch_size = get_effective_batch_size(
         batch_size, local_rank, n_gpu, gradient_accumulation_steps) * n_gpu
-    # WARNING: this will fail if the primary sequence is not the first thing the dataset returns
+    # WARNING: this requires the dataset to have an item_length(idx) function to return the
+    # length of the item at idx
     batch_sampler = BucketBatchSampler(
-        sampler, batch_size, False, lambda x: len(x[0]), dataset, 10)
+        sampler, batch_size, False, dataset, 10)
 
     loader = DataLoader(
         dataset,
         num_workers=num_workers,
-        collate_fn=dataset.collate_fn,  # type: ignore
-        # batch_sampler=batch_sampler
-        batch_size=batch_size,
-
+        collate_fn=dataset.collate_fn,
+        batch_sampler=batch_sampler,
     )
 
     return loader
