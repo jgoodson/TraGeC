@@ -126,7 +126,8 @@ class BackwardRunner(ForwardRunner):
                  local_rank: int = -1,
                  max_grad_norm: float = 1.0,
                  warmup_steps: int = 0,
-                 num_train_optimization_steps: int = 1000000):
+                 num_train_optimization_steps: int = 1000000,
+                 loss_scale: float = 2 ** 15):
 
         super().__init__(model, device, n_gpu, fp16, local_rank)
         self.optimizer = optimizer
@@ -137,10 +138,12 @@ class BackwardRunner(ForwardRunner):
         self.gradient_accumulation_steps = gradient_accumulation_steps
         self._delay_accumulation = fp16 and local_rank != -1
 
+        self.initialize_fp16(loss_scale)
+
         self.scheduler = WarmupLinearSchedule(
             self.optimizer, warmup_steps, num_train_optimization_steps)
 
-    def initialize_fp16(self, loss_scale: float = 2 ** 20):
+    def initialize_fp16(self, loss_scale: float = 2 ** 15):
         if self.fp16:
             self.model, self.optimizer = amp.initialize(
                 self.model, self.optimizer, opt_level="O2", loss_scale="dynamic",
@@ -460,9 +463,8 @@ def run_train(model_type: str,
 
     runner = BackwardRunner(
         model, optimizer, gradient_accumulation_steps, device, n_gpu,
-        fp16, local_rank, max_grad_norm, warmup_steps, num_train_optimization_steps)
+        fp16, local_rank, max_grad_norm, warmup_steps, num_train_optimization_steps, loss_scale)
 
-    runner.initialize_fp16()
     if resume_from_checkpoint:
         assert from_pretrained is not None
         start_epoch = runner.resume_from_checkpoint(from_pretrained)
