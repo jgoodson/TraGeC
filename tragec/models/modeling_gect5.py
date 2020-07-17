@@ -22,13 +22,14 @@ import logging
 
 import torch
 from torch import nn
-from transformers.modeling_t5 import T5Stack, T5Config
+from transformers.modeling_t5 import T5Config
 from tape.models.modeling_utils import LayerNorm
 
 from tragec.registry import registry
 from .configuration import GeCConfig
 from .modeling import GeCModel, GeCEmbeddings
 from .modeling import MaskedReconHead
+from .modeling_t5 import T5Stack
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class GeCT5Config(T5Config, GeCConfig):
                  input_rep_size: int = 768,
                  initializer_range: float = 0.02,
                  layer_norm_eps: float = 1e-12,
+                 gradient_checkpointing: bool = False,
                  **kwargs):
         super().__init__(**kwargs)
         self.input_rep_size = input_rep_size
@@ -66,6 +68,7 @@ class GeCT5Config(T5Config, GeCConfig):
         self.initializer_range = initializer_range
         self.layer_norm_eps = layer_norm_eps
         self.use_cache = False
+        self.checkpoint = gradient_checkpointing
 
 
 class GeCT5AbstractModel(GeCModel):
@@ -113,7 +116,7 @@ class GeCT5Model(GeCT5AbstractModel):
         if input_mask is None:
             input_mask = torch.ones(gene_reps.shape[:-1])
 
-        return self.t5(inputs_embeds=self.embedding(gene_reps), attention_mask=input_mask, use_cache=False)
+        return self.t5(inputs_embeds=self.embedding(gene_reps))
 
 
 @registry.register_task_model('masked_recon_modeling', 't5enc')
@@ -141,6 +144,6 @@ class GeCT5ForMaskedRecon(GeCT5AbstractModel):
 
         sequence_output = outputs[0]
 
-        outputs = self.mrm(self.projection(sequence_output), targets) + outputs[1:]
-        # (loss), prediction_scores, (hidden_states), (attentions)
+        outputs = self.mrm(self.projection(sequence_output), targets)
+        # (loss), prediction_scores, (hidden_states)
         return outputs

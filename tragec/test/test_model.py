@@ -8,7 +8,7 @@ from tragec.models.modeling_gecbert import GeCBertModel, GeCBertConfig, GeCBertF
 from tragec.models.modeling_gect5 import GeCT5Config, GeCT5Model, GeCT5ForMaskedRecon
 
 
-class TestGeCBertRawHF(unittest.TestCase):
+class TestGeCBertRaw(unittest.TestCase):
 
     def setUp(self) -> None:
         self.config = GeCBertConfig(
@@ -32,7 +32,7 @@ class TestGeCBertRawHF(unittest.TestCase):
         self.simpleForwardZeros((4, 100, 128))
 
 
-class TestGeCBertReconHF(unittest.TestCase):
+class TestGeCBertRecon(unittest.TestCase):
 
     def setUp(self) -> None:
         super().setUp()
@@ -58,10 +58,10 @@ class TestGeCBertReconHF(unittest.TestCase):
         m, t = MaskedReconstructionDataset._apply_pseudobert_mask(data)
         batch = MaskedReconstructionDataset.collate_fn([(m, np.ones(len(m)), t)])
         ((loss, metrics), _) = self.model(**batch)
-        loss.backward(loss)
+        loss.backward()
 
 
-class TestGeCT5RawHF(unittest.TestCase):
+class TestGeCT5Raw(unittest.TestCase):
 
     def setUp(self) -> None:
         self.config = GeCT5Config(
@@ -84,7 +84,21 @@ class TestGeCT5RawHF(unittest.TestCase):
         self.simpleForwardZeros((4, 100, 128))
 
 
-class TestGeCT5ReconHF(TestGeCBertRawHF):
+class TestGeCT5RawCP(TestGeCT5Raw):
+
+    def setUp(self) -> None:
+        self.config = GeCT5Config(
+            hidden_size=128,
+            num_hidden_layers=8,
+            num_attention_heads=8,
+            intermediate_size=512,
+            input_rep_size=128,
+            gradient_checkpointing=True,
+        )
+        self.model = GeCT5Model(self.config)
+
+
+class TestGeCT5Recon(TestGeCBertRecon):
 
     def setUp(self) -> None:
         super().setUp()
@@ -101,6 +115,22 @@ class TestGeCT5ReconHF(TestGeCBertRawHF):
     def simpleForwardZeros(self, shape, ):
         (seq_output,) = self.model(torch.zeros(shape, dtype=torch.float32))
         self.assertEqual(seq_output.shape, shape)
+
+
+class TestGeCT5ReconCP(TestGeCT5Recon):
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.config = GeCT5Config(
+            hidden_size=128,
+            num_hidden_layers=8,
+            num_attention_heads=8,
+            intermediate_size=512,
+            input_rep_size=128,
+            gradient_checkpointing=True
+        )
+        self.model = GeCT5ForMaskedRecon(self.config)
+        self.size = (1, 100, 128)
 
 
 if __name__ == '__main__':
