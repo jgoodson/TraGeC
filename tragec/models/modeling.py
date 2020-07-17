@@ -3,8 +3,15 @@ import typing
 
 import numpy as np
 import torch
-from tape.models.modeling_utils import ProteinModel, LayerNorm
+from tape.models.modeling_utils import ProteinModel
 from torch import nn
+
+try:
+    from apex.normalization import FusedLayerNorm as LayerNorm
+
+    LayerNorm(1)
+except ImportError:
+    from torch.nn import LayerNorm
 
 from .configuration import GeCConfig
 
@@ -88,9 +95,22 @@ class MaskedReconHead(nn.Module):
             loss_fct = self._loss_fn()
             masked_recon_loss = loss_fct(
                 masked_states, masked_targets)
-            metrics = {
-                'mean_absval': torch.abs(masked_states).mean().detach().item(),
-            }
+            with torch.no_grad():
+                double_t, double_s = masked_targets.type(torch.float64), masked_states.type(torch.float64)
+                numerator = ((double_t - double_s) ** 2).sum(0)
+                denominator = ((double_t - double_t.mean(0)) ** 2).sum(0)
+                nonzero_denominator = denominator != 0
+                nonzero_numerator = numerator != 0
+                valid_score = nonzero_denominator & nonzero_numerator
+                output_scores = torch.ones([double_t.shape[1]], dtype=torch.float64, device=numerator.device)
+                output_scores[valid_score] = 1 - (numerator[valid_score] /
+                                                  denominator[valid_score])
+                metrics = {
+                    'mean': torch.mean(double_s).detach().item(),
+                    'mean_absval': torch.abs(double_s).mean().detach().item(),
+                    'mean_stdev': torch.std(double_s, 0).mean().detach().item(),
+                    'mean_nse': output_scores.mean().detach().item(),
+                }
             loss_and_metrics = (masked_recon_loss, metrics)
             outputs = (loss_and_metrics,) + outputs
         return outputs

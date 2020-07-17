@@ -9,7 +9,11 @@ import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader, RandomSampler, Dataset
 from torch.utils.data.distributed import DistributedSampler
-from tape.optimization import AdamW
+
+from apex.optimizers import FusedAdam as AdamW
+from apex.optimizers import FusedLAMB as LAMB
+from apex.optimizers import FusedNovoGrad as NovoGrad
+from apex.optimizers import FusedSGD as SGD
 
 from ..registry import registry
 
@@ -53,13 +57,15 @@ def setup_logging(local_rank: int,
 
 
 def setup_optimizer(model,
-                    learning_rate: float):
+                    learning_rate: float,
+                    optimizer: str):
     """Create the AdamW optimizer for the given model with the specified learning rate. Based on
     creation in the pytorch_transformers repository.
 
     Args:
         model (PreTrainedModel): The model for which to create an optimizer
         learning_rate (float): Default learning rate to use when creating the optimizer
+        optimizer (str): type of optimizer to implement (adamw, lamb, novograd, sgd)
 
     Returns:
         optimizer (AdamW): An AdamW optimizer
@@ -81,8 +87,14 @@ def setup_optimizer(model,
             "weight_decay": 0.0,
         },
     ]
-
-    optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate)
+    if optimizer == 'adamw':
+        optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate)
+    elif optimizer == 'lamb':
+        optimizer = LAMB(optimizer_grouped_parameters, lr=learning_rate)
+    elif optimizer == 'sgd':
+        optimizer = SGD(optimizer_grouped_parameters, lr=learning_rate)
+    elif optimizer == 'novograd':
+        optimizer = NovoGrad(optimizer_grouped_parameters, lr=learning_rate)
     return optimizer
 
 
@@ -105,7 +117,7 @@ def setup_loader(dataset: Dataset,
         batch_size, local_rank, n_gpu, gradient_accumulation_steps) * n_gpu
     # WARNING: this will fail if the primary sequence is not the first thing the dataset returns
     batch_sampler = BucketBatchSampler(
-        sampler, batch_size, False, lambda x: len(x[0]), dataset, 100)
+        sampler, batch_size, False, lambda x: len(x[0]), dataset, 10)
 
     loader = DataLoader(
         dataset,

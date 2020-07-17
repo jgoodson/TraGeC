@@ -91,6 +91,8 @@ def create_train_parser(base_parser: argparse.ArgumentParser) -> argparse.Argume
                              "training")
     parser.add_argument('--resume_from_checkpoint', action='store_true',
                         help="whether to resume training from the checkpoint")
+    parser.add_argument('--optimizer', default='adamw', type=str,
+                        help='Which optimizer to use (currently implemented: adamw, lamb, novograd, sgd)')
     return parser
 
 
