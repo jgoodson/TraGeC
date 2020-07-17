@@ -140,12 +140,12 @@ class BackwardRunner(ForwardRunner):
         self.scheduler = WarmupLinearSchedule(
             self.optimizer, warmup_steps, num_train_optimization_steps)
 
-    def initialize_fp16(self):
+    def initialize_fp16(self, loss_scale: float = 2 ** 20):
         if self.fp16:
             self.model, self.optimizer = amp.initialize(
                 self.model, self.optimizer, opt_level="O2", loss_scale="dynamic",
                 master_weights=True)
-            _amp_state.loss_scalers[0]._loss_scale = 2 ** 20
+            _amp_state.loss_scalers[0]._loss_scale = loss_scale
 
     def resume_from_checkpoint(self, checkpoint_dir: str) -> int:
         checkpoint = torch.load(
@@ -393,7 +393,7 @@ def run_train(model_type: str,
               fp16: bool = False,
               warmup_steps: int = 10000,
               gradient_accumulation_steps: int = 1,
-              loss_scale: int = 0,
+              loss_scale: float = 2 ** 15,
               max_grad_norm: float = 1.0,
               exp_name: typing.Optional[str] = None,
               from_pretrained: typing.Optional[str] = None,

@@ -71,8 +71,8 @@ def create_train_parser(base_parser: argparse.ArgumentParser) -> argparse.Argume
                         help='Number of learning rate warmup steps')
     parser.add_argument('--gradient_accumulation_steps', default=1, type=int,
                         help='Number of forward passes to make for each backwards pass')
-    parser.add_argument('--loss_scale', default=0, type=int,
-                        help='Loss scaling. Only used during fp16 training.')
+    parser.add_argument('--loss_scale', default=2 ** 15, type=float,
+                        help='Starting loss scaling factor. Only used during fp16 training.')
     parser.add_argument('--max_grad_norm', default=1.0, type=float,
                         help='Maximum gradient norm')
     parser.add_argument('--exp_name', default=None, type=str,
