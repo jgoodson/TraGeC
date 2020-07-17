@@ -16,13 +16,10 @@
 # limitations under the License.
 """PyTorch BERT model. """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import logging
 
 import torch
-from tape.models.modeling_bert import ProteinBertSelfAttention, ProteinBertSelfOutput, ProteinBertAttention, \
-    ProteinBertIntermediate, ProteinBertOutput, ProteinBertLayer, ProteinBertEncoder, ProteinBertPooler
+
 from tape.models.modeling_utils import LayerNorm
 from torch import nn
 from transformers import BertModel, BertConfig

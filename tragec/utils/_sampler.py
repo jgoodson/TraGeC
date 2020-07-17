@@ -1,5 +1,5 @@
 """Implementation of a bucketed data sampler from PyTorch-NLP.
-Modified by Roshan Rao.
+Modified by Roshan Rao. (and then further)
 
 See https://github.com/PetrochukM/PyTorch-NLP/
 """
