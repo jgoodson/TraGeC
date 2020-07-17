@@ -412,7 +412,8 @@ def run_train(model_type: str,
               log_level: typing.Union[str, int] = logging.INFO,
               patience: int = -1,
               resume_from_checkpoint: bool = False,
-              optimizer: str = 'adamw') -> None:
+              optimizer: str = 'adamw',
+              max_seq_len: int = 512) -> None:
     # SETUP AND LOGGING CODE #
     input_args = locals()
     device, n_gpu, is_master = utils.setup_distributed(
@@ -431,8 +432,8 @@ def run_train(model_type: str,
     utils.setup_logging(local_rank, save_path, log_level)
     utils.set_random_seeds(seed, n_gpu)
 
-    train_dataset = utils.setup_dataset(task, data_dir, 'train', tokenizer)
-    valid_dataset = utils.setup_dataset(task, data_dir, 'valid', tokenizer)
+    train_dataset = utils.setup_dataset(task, data_dir, 'train', tokenizer, max_seq_len)
+    valid_dataset = utils.setup_dataset(task, data_dir, 'valid', tokenizer, max_seq_len)
     train_loader = utils.setup_loader(
         train_dataset, batch_size, local_rank, n_gpu,
         gradient_accumulation_steps, num_workers)

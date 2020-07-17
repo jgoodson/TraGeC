@@ -93,6 +93,8 @@ def create_train_parser(base_parser: argparse.ArgumentParser) -> argparse.Argume
                         help="whether to resume training from the checkpoint")
     parser.add_argument('--optimizer', default='adamw', type=str,
                         help='Which optimizer to use (currently implemented: adamw, lamb, novograd, sgd)')
+    parser.add_argument('--max_seq_len', default=512, type=int,
+                        help="Maximum sequence length for input data map")
     return parser
 
 
