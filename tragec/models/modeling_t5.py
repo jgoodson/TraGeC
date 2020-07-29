@@ -18,10 +18,12 @@ class T5Block(nn.Module):
     def forward(
             self,
             hidden_states,
+            attention_mask,
             position_bias=None,
     ):
         self_attention_outputs = self.layer[0](
             hidden_states,
+            attention_mask=attention_mask,
             position_bias=position_bias,
         )
         hidden_states, present_key_value_state = self_attention_outputs[:2]
@@ -64,26 +66,24 @@ class T5Stack(T5PreTrainedModel):
     def forward(
             self,
             inputs_embeds=None,
-            output_hidden_states=None,
+            attention_mask=None,
     ):
-
-        output_attentions = self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-
-        # Prepare head mask if needed
-        all_hidden_states = ()
-        all_attentions = ()
         position_bias = None
+
+        batch_size, seq_length = input_shape = inputs_embeds.size()[:-1]
+
+        if attention_mask is None:
+            attention_mask = torch.ones(batch_size, seq_length).to(inputs_embeds.device)
+
+        extended_attention_mask = self.get_extended_attention_mask(attention_mask, input_shape, inputs_embeds.device)
+        extended_attention_mask.requires_grad = True
 
         hidden_states = self.dropout(inputs_embeds)
         for i, layer_module in enumerate(self.block):
-            if output_hidden_states:
-                all_hidden_states = all_hidden_states + (hidden_states,)
 
             features = (
                 hidden_states,
+                extended_attention_mask,
                 position_bias,
             )
 
@@ -106,19 +106,9 @@ class T5Stack(T5PreTrainedModel):
                 # layer_outputs = hidden-states, (self-attention position bias)
                 position_bias = layer_outputs[1]
 
-            if output_attentions:
-                all_attentions = all_attentions + (layer_outputs[1],)  # We keep only self-attention weights for now
-
         hidden_states = self.final_layer_norm(hidden_states)
         hidden_states = self.dropout(hidden_states)
 
-        # Add last layer
-        if output_hidden_states:
-            all_hidden_states = all_hidden_states + (hidden_states,)
-
         outputs = (hidden_states,)
-        if output_hidden_states:
-            outputs = outputs + (all_hidden_states,)
-        if output_attentions:
-            outputs = outputs + (all_attentions,)
+
         return outputs  # last-layer hidden state, (presents,) (all hidden states), (all attentions)

@@ -25,9 +25,7 @@ from torch import nn
 from transformers import BertModel, BertConfig
 
 from tragec.registry import registry
-from .configuration import GeCConfig
-from .modeling import GeCModel, GeCEmbeddings
-from .modeling import MaskedReconHead
+from .modeling import GeCConfig, GeCModel, GeCEmbeddings, GeCMaskedRecon
 
 logger = logging.getLogger(__name__)
 
@@ -36,34 +34,13 @@ BERT_PRETRAINED_MODEL_ARCHIVE_MAP = {}
 BERT_PRETRAINED_CONFIG_ARCHIVE_MAP = {}
 
 
-class GeCBertConfig(BertConfig, GeCConfig):
+class GeCBertConfig(GeCConfig, BertConfig):
     pretrained_config_archive_map = BERT_PRETRAINED_CONFIG_ARCHIVE_MAP
 
     def __init__(self,
-                 hidden_size: int = 768,
-                 num_hidden_layers: int = 12,
-                 num_attention_heads: int = 12,
-                 intermediate_size: int = 3072,
-                 hidden_act: str = "gelu",
-                 hidden_dropout_prob: float = 0.1,
-                 attention_probs_dropout_prob: float = 0.1,
-                 max_position_embeddings: int = 8096,
-                 input_rep_size: int = 768,
-                 initializer_range: float = 0.02,
-                 layer_norm_eps: float = 1e-12,
                  **kwargs):
         super().__init__(**kwargs)
-        self.input_rep_size = input_rep_size
-        self.hidden_size = hidden_size
-        self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
-        self.hidden_act = hidden_act
-        self.intermediate_size = intermediate_size
-        self.hidden_dropout_prob = hidden_dropout_prob
-        self.attention_probs_dropout_prob = attention_probs_dropout_prob
-        self.max_position_embeddings = max_position_embeddings
-        self.initializer_range = initializer_range
-        self.layer_norm_eps = layer_norm_eps
+        BertConfig.__init__(self, **kwargs)
 
 
 class GeCBertAbstractModel(GeCModel):
@@ -93,52 +70,25 @@ class GeCBertModel(GeCBertAbstractModel):
 
         self.embedding = GeCEmbeddings(config)
 
-        self.bert = BertModel(config)
-
-        self.init_weights()
-
-    def _prune_heads(self, heads_to_prune):
-        """ Prunes heads of the model.
-            heads_to_prune: dict of {layer_num: list of heads to prune in this layer}
-            See base class GeCModel
-        """
-        for layer, heads in heads_to_prune.items():
-            self.encoder.layer[layer].attention.prune_heads(heads)
-
-    def forward(self,
-                gene_reps,
-                input_mask=None):
-        if input_mask is None:
-            input_mask = torch.ones(gene_reps.shape[:-1])
-
-        return self.bert(inputs_embeds=self.embedding(gene_reps), attention_mask=input_mask)
-
-
-@registry.register_task_model('masked_recon_modeling', 'transformer')
-class GeCBertForMaskedRecon(GeCBertAbstractModel):
-
-    def __init__(self, config):
-        super().__init__(config)
-
-        self.bert = GeCBertModel(config)
-
-        self.projection = nn.Linear(
-            config.hidden_size,
-            config.input_rep_size,
-        )
-        self.mrm = MaskedReconHead(ignore=0)
+        self.model = BertModel(config)
 
         self.init_weights()
 
     def forward(self,
                 gene_reps,
                 input_mask=None,
-                targets=None):
-        outputs = self.bert(gene_reps, input_mask=input_mask)
+                strands=None,
+                lengths=None, ):
+        return self.model(inputs_embeds=self.embedding(gene_reps, strands=strands, lengths=lengths),
+                          attention_mask=input_mask)
 
-        sequence_output, pooled_output = outputs[:2]
-        # add hidden states and attention if they are here
 
-        outputs = self.mrm(self.projection(sequence_output), targets) + outputs[2:]
-        # (loss), prediction_scores, (hidden_states), (attentions)
-        return outputs
+@registry.register_task_model('masked_recon_modeling', 'transformer')
+class GeCBertForMaskedRecon(GeCMaskedRecon, GeCBertAbstractModel):
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        self.model = GeCBertModel(config)
+
+        self.init_weights()

@@ -102,14 +102,19 @@ class MaskedReconstructionDataset(GeCDataset):
         item = self.data[index]
         refseq_id, locs = item['refseq'], item['indices']
 
-        hashes, _, _, _ = zip(*self.refseq[refseq_id]['genes'][locs[0]:locs[1]])
+        hashes, starts, stops, strands = zip(*self.refseq[refseq_id]['genes'][locs[0]:locs[1]])
 
         gene_reps = np.vstack([np.frombuffer(self.seqvec[h], dtype=np.float32) for h in hashes])
 
         masked_reps, targets = self._apply_pseudobert_mask(gene_reps)
+
         input_mask = np.ones(len(masked_reps))
 
-        return masked_reps, input_mask, targets
+        # TODO: mask these?
+        strands = np.array(strands, dtype=np.int8)
+        lengths = np.array(stops, dtype=np.int16) - np.array(starts, dtype=np.int16)
+
+        return masked_reps, input_mask, targets, strands, lengths
 
     def item_length(self, index):
         item = self.data[index]
@@ -117,17 +122,23 @@ class MaskedReconstructionDataset(GeCDataset):
         return locs[1] - locs[0]
 
     @staticmethod
-    def collate_fn(batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray]]) -> Dict[str, torch.Tensor]:
-        gene_reps, input_mask, targets = tuple(zip(*batch))
+    def collate_fn(batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]) \
+            -> Dict[str, torch.Tensor]:
+        gene_reps, input_mask, targets, strands, lengths = tuple(zip(*batch))
 
         gene_reps = torch.from_numpy(pad_sequences(gene_reps, 0))
         input_mask = torch.from_numpy(pad_sequences(input_mask, 0))
         # ignores all-0 representations
         targets = torch.from_numpy(pad_sequences(targets, 0))
+        # 1 = forward, -1 = reverse, 0 = pad
+        strands = torch.from_numpy(pad_sequences(strands, 0))
+        lengths = torch.from_numpy(pad_sequences(lengths, 0))
 
         return {'gene_reps': gene_reps,
                 'input_mask': input_mask,
-                'targets': targets, }
+                'targets': targets,
+                'strands': strands,
+                'lengths': lengths}
 
     @staticmethod
     def _apply_pseudobert_mask(gene_reps: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
