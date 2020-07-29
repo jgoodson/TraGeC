@@ -3,8 +3,7 @@ import pkgutil
 import sys
 from pathlib import Path
 
-from tragec.models.configuration import GeCConfig
-from tragec.models.modeling import GeCModel
+from tragec.models.modeling import GeCModel, GeCConfig
 from . import datasets
 from . import metrics
 
