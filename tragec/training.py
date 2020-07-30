@@ -146,8 +146,8 @@ class BackwardRunner(ForwardRunner):
     def initialize_fp16(self, loss_scale: float = 2 ** 15):
         if self.fp16:
             self.model, self.optimizer = amp.initialize(
-                self.model, self.optimizer, opt_level="O2", loss_scale="dynamic",
-                master_weights=True)
+                self.model, self.optimizer, opt_level="O1", loss_scale="dynamic",
+            )  # master_weights=True)
             _amp_state.loss_scalers[0]._loss_scale = loss_scale
 
     def resume_from_checkpoint(self, checkpoint_dir: str) -> int:
