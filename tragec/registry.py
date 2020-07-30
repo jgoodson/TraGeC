@@ -6,6 +6,8 @@ from torch.utils.data import Dataset
 
 from .models.modeling import GeCModel
 
+import json
+
 PathType = Union[str, Path]
 
 
@@ -201,7 +203,10 @@ class Registry:
         else:
             config_class = model_cls.config_class
             if config_file is not None:
-                config = config_class.from_json_file(config_file)
+                # TODO: consider re-writing the TAPE config base class to work with multiple inheritance
+                with open(config_file, "r", encoding='utf-8') as reader:
+                    text = reader.read()
+                config = config_class(**json.loads(text))
             else:
                 config = config_class()
             config.num_labels = task_spec.num_labels
