@@ -87,7 +87,7 @@ class MaskedReconstructionDataset(GeCDataset):
                 f"Must be one of ['train', 'valid', 'holdout']")
 
         data_path = Path(data_path)
-        data_file = f'refseq/map{max_seq_len}/refseq_{split}.lmdb'
+        data_file = f'refseq/maps{max_seq_len}/refseq_{split}.lmdb'
         refseq_file = f'refseq/refseq.lmdb'
         seqvec_file = f'seqvec/{seqvec_type}.lmdb'
         self.data = LMDBDataset(data_path / data_file, )
@@ -102,17 +102,25 @@ class MaskedReconstructionDataset(GeCDataset):
         item = self.data[index]
         refseq_id, locs = item['refseq'], item['indices']
 
-        hashes, starts, stops, strands = zip(*self.refseq[refseq_id]['genes'][locs[0]:locs[1]])
+        # Data includes forward and reverse strand indices, manage reverse strand properly
+        if locs[1] > locs[0]:
+            hashes, starts, stops, strands = zip(*self.refseq[refseq_id]['genes'][locs[0]:locs[1]])
+        else:
+            hashes, starts, stops, strands = zip(*self.refseq[refseq_id]['genes'][locs[1]:locs[0]][::-1])
+
+        # TODO mask strands/lengths?
+        lengths = np.array(stops, dtype=np.int16) - np.array(starts, dtype=np.int16)
+        strands = np.array(strands, dtype=np.int8)
+
+        # Strand +/- is arbitrary based on sequencing, only relative strand matters, randomize each time
+        if np.random.random() > 0.5:
+            strands *= -1
 
         gene_reps = np.vstack([np.frombuffer(self.seqvec[h], dtype=np.float32) for h in hashes])
 
         masked_reps, targets = self._apply_pseudobert_mask(gene_reps)
 
         input_mask = np.ones(len(masked_reps))
-
-        # TODO: mask these?
-        strands = np.array(strands, dtype=np.int8)
-        lengths = np.array(stops, dtype=np.int16) - np.array(starts, dtype=np.int16)
 
         return masked_reps, input_mask, targets, strands, lengths
 
