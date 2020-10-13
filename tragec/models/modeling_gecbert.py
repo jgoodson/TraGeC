@@ -25,7 +25,7 @@ from torch import nn
 from transformers import BertModel, BertConfig
 
 from tragec.registry import registry
-from .modeling import GeCConfig, GeCModel, GeCEmbeddings, GeCMaskedRecon
+from .modeling import GeCConfig, GeCModel, GeCEmbeddings, GeCMaskedRecon, MaskedReconHead
 
 logger = logging.getLogger(__name__)
 
@@ -84,11 +84,32 @@ class GeCBertModel(GeCBertAbstractModel):
 
 
 @registry.register_task_model('masked_recon_modeling', 'transformer')
-class GeCBertForMaskedRecon(GeCMaskedRecon, GeCBertAbstractModel):
+class GeCBertForMaskedRecon(GeCBertAbstractModel):
 
     def __init__(self, config):
         super().__init__(config)
 
         self.model = GeCBertModel(config)
 
+        self.projection = nn.Linear(
+            config.hidden_size,
+            config.input_rep_size,
+        )
+        self.mrm = MaskedReconHead(ignore=0)
+
         self.init_weights()
+
+    def forward(self,
+                gene_reps,
+                targets=None,
+                input_mask=None,
+                strands=None,
+                lengths=None):
+        outputs = self.model(gene_reps, input_mask=input_mask, strands=strands, lengths=lengths)
+
+        sequence_output = outputs[0]
+        # add hidden states and attention if they are here
+
+        outputs = self.mrm(self.projection(sequence_output), targets)
+
+        return outputs
