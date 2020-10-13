@@ -23,6 +23,7 @@ import torch
 from tape.models.modeling_utils import LayerNorm
 from torch import nn
 from transformers import BertModel, BertConfig
+from tape.models.modeling_utils import SequenceClassificationHead
 
 from tragec.registry import registry
 from .modeling import GeCConfig, GeCModel, GeCEmbeddings, GeCMaskedRecon, MaskedReconHead
@@ -112,4 +113,31 @@ class GeCBertForMaskedRecon(GeCBertAbstractModel):
 
         outputs = self.mrm(self.projection(sequence_output), targets)
 
+        return outputs
+
+
+@registry.register_task_model('classify_gec', 'transformer')
+class GeCBertForSequenceClassification(GeCBertAbstractModel):
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        self.model = GeCBertModel(config)
+        self.classify = SequenceClassificationHead(
+            config.hidden_size, config.num_labels)
+
+        self.init_weights()
+
+    def forward(self,
+                gene_reps,
+                targets=None,
+                input_mask=None,
+                strands=None,
+                lengths=None):
+        outputs = self.model(gene_reps, input_mask=input_mask, strands=strands, lengths=lengths)
+
+        sequence_output, pooled_output = outputs[:2]
+
+        outputs = self.classify(pooled_output, targets) + outputs[2:]
+        # (loss), prediction_scores, (hidden_states), (attentions)
         return outputs
