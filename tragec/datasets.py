@@ -179,6 +179,7 @@ class MaskedReconstructionDataset(GeCDataset):
 
 @registry.register_task('embed_gec')
 class EmbedDataset(GeCDataset):
+    # TODO: find out if this actually works or if I test it anywhere
 
     def __init__(self,
                  data_file: Union[str, Path],
@@ -205,3 +206,47 @@ class EmbedDataset(GeCDataset):
         gene_reps = torch.from_numpy(pad_sequences(gene_reps))
         input_mask = torch.from_numpy(pad_sequences(input_mask))
         return {'ids': ids, 'gene_reps': gene_reps, 'input_mask': input_mask}  # type: ignore
+
+
+@registry.register_task('classify_gec', num_labels=19)
+class GeCClassificationDataset(Dataset):
+
+    def __init__(self,
+                 data_path: Union[str, Path],
+                 split: str):
+        super().__init__()
+
+        if split not in ('train', 'valid', 'holdout'):
+            raise ValueError(
+                f"Unrecognized split: {split}. "
+                f"Must be one of ['train', 'valid', 'holdout']")
+
+        data_path = Path(data_path)
+
+        data_file = f'refseq/bmcs_{split}.lmdb'
+        self.data = LMDBDataset(data_path / data_file, )
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, index: int):
+        item = self.data[index]
+        gene_reps = item['gene_reps']
+        input_mask = np.ones_like(gene_reps)
+        return gene_reps, input_mask, item['gec_type'], item['strands'], item['lengths']
+
+    def collate_fn(batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]) \
+            -> Dict[str, torch.Tensor]:
+        gene_reps, input_mask, targets, strands, lengths = tuple(zip(*batch))
+
+        gene_reps = torch.from_numpy(pad_sequences(gene_reps, 0))
+        input_mask = torch.from_numpy(pad_sequences(input_mask, 0))
+        targets = torch.LongTensor(targets)
+        strands = torch.from_numpy(pad_sequences(strands, 0))
+        lengths = torch.from_numpy(pad_sequences(lengths, 0))
+
+        return {'gene_reps': gene_reps,
+                'targets': targets,
+                'input_mask': input_mask,
+                'strands': strands,
+                'lengths': lengths}
