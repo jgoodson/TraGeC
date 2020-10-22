@@ -158,8 +158,8 @@ class MaskedReconstructionDataset(GeCDataset):
             # Tokens begin and end with start_token and stop_token, ignore these
 
             prob = random.random()
-            if prob < 0.15:
-                prob /= 0.15
+            if prob < 0.10:
+                prob /= 0.10
                 targets[i] = gene_rep
 
                 if prob < 0.8:
