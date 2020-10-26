@@ -40,7 +40,8 @@ class LMDBDataset(Dataset):
         if not data_file.exists():
             raise FileNotFoundError(data_file)
 
-        env = lmdb.open(str(data_file), max_readers=1, readonly=True,
+        self._data_file = str(data_file)
+        env = lmdb.open(self._data_file, max_readers=1, readonly=True,
                         lock=False, readahead=False, meminit=False)
 
         with env.begin(write=False) as txn:
@@ -61,6 +62,16 @@ class LMDBDataset(Dataset):
             except TypeError:
                 print(index, self._env.path())
         return item
+
+    def __getstate__(self):
+        dict = self.__dict__.copy()
+        del dict['_env']
+        return dict
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._env = lmdb.open(self._data_file, max_readers=1, readonly=True,
+                              lock=False, readahead=False, meminit=False)
 
 
 @registry.register_task('masked_recon_modeling')
