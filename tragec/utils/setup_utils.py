@@ -12,12 +12,14 @@ from torch.utils.data.distributed import DistributedSampler
 
 try:
     from apex.optimizers import FusedAdam as AdamW
+    AdamW([torch.tensor(1)])
     from apex.optimizers import FusedLAMB as LAMB
     from apex.optimizers import FusedNovoGrad as NovoGrad
     from apex.optimizers import FusedSGD as SGD
     APEX_FOUND = True
-except ImportError:
+except (ModuleNotFoundError, ImportError, RuntimeError):
     from torch.optim import AdamW
+
     APEX_FOUND = False
 
 from ..registry import registry
