@@ -16,6 +16,10 @@ test_config_kwargs = dict(
 )
 
 
+# Testing TODO:
+# TODO: Test construction from dict/json
+
+
 class TestGeCBertRaw(unittest.TestCase):
 
     def setUp(self) -> None:
