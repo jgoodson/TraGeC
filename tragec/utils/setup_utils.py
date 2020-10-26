@@ -10,10 +10,15 @@ import torch.distributed as dist
 from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 
-from apex.optimizers import FusedAdam as AdamW
-from apex.optimizers import FusedLAMB as LAMB
-from apex.optimizers import FusedNovoGrad as NovoGrad
-from apex.optimizers import FusedSGD as SGD
+try:
+    from apex.optimizers import FusedAdam as AdamW
+    from apex.optimizers import FusedLAMB as LAMB
+    from apex.optimizers import FusedNovoGrad as NovoGrad
+    from apex.optimizers import FusedSGD as SGD
+    APEX_FOUND = True
+except ImportError:
+    from torch.optim import AdamW
+    APEX_FOUND = False
 
 from ..registry import registry
 from ..datasets import GeCDataset
@@ -90,12 +95,14 @@ def setup_optimizer(model,
     ]
     if optimizer == 'adamw':
         optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate)
-    elif optimizer == 'lamb':
+    elif APEX_FOUND and optimizer == 'lamb':
         optimizer = LAMB(optimizer_grouped_parameters, lr=learning_rate)
-    elif optimizer == 'sgd':
+    elif APEX_FOUND and optimizer == 'sgd':
         optimizer = SGD(optimizer_grouped_parameters, lr=learning_rate)
-    elif optimizer == 'novograd':
+    elif APEX_FOUND and optimizer == 'novograd':
         optimizer = NovoGrad(optimizer_grouped_parameters, lr=learning_rate)
+    else:
+        raise NotImplemented()
     return optimizer
 
 
