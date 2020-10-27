@@ -9,7 +9,6 @@ from torch import nn
 try:
     from apex.normalization import FusedLayerNorm as LayerNorm
 
-    LayerNorm(1)
 except ImportError:
     from torch.nn import LayerNorm
 
