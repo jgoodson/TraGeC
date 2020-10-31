@@ -79,7 +79,8 @@ class MaskedReconstructionDataset(GeCDataset):
                  split: str,
                  in_memory: bool = False,
                  seqvec_type: str = 'seqvec',
-                 max_seq_len: int = 512):
+                 max_seq_len: int = 512,
+                 percentmasked=.15):
         super().__init__()
         if split not in ('train', 'valid', 'holdout'):
             raise ValueError(
@@ -94,6 +95,7 @@ class MaskedReconstructionDataset(GeCDataset):
         self.refseq = LMDBDataset(data_path / refseq_file, )
         array_decode = partial(np.frombuffer, dtype=np.float32)
         self.seqvec = LMDBDataset(data_path / seqvec_file, decode_method=array_decode)
+        self.percentmasked = percentmasked
 
     def __len__(self) -> int:
         return len(self.data)
@@ -118,7 +120,7 @@ class MaskedReconstructionDataset(GeCDataset):
 
         gene_reps = np.vstack([np.frombuffer(self.seqvec[h], dtype=np.float32) for h in hashes])
 
-        masked_reps, targets = self._apply_pseudobert_mask(gene_reps)
+        masked_reps, targets = self._apply_pseudobert_mask(gene_reps,self.percentmasked)
 
         input_mask = np.ones(len(masked_reps))
 
@@ -149,7 +151,7 @@ class MaskedReconstructionDataset(GeCDataset):
                 'lengths': lengths}
 
     @staticmethod
-    def _apply_pseudobert_mask(gene_reps: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def _apply_pseudobert_mask(gene_reps: np.ndarray, percentmasked=.15) -> Tuple[np.ndarray, np.ndarray]:
         masked_gene_reps = copy(gene_reps)
         rep_size = len(gene_reps[0])
         targets = np.zeros_like(masked_gene_reps)
@@ -158,8 +160,9 @@ class MaskedReconstructionDataset(GeCDataset):
             # Tokens begin and end with start_token and stop_token, ignore these
 
             prob = random.random()
-            if prob < 0.10:
-                prob /= 0.10
+            #PercentMasked-A decimal less than .8 but greater than 0
+            if prob < percentmasked:
+                prob /= percentmasked
                 targets[i] = gene_rep
 
                 if prob < 0.8:
