@@ -556,7 +556,8 @@ def run_eval(model_type: str,
              num_workers: int = 8,
              debug: bool = False,
              metrics: typing.Tuple[str, ...] = (),
-             log_level: typing.Union[str, int] = logging.INFO) -> typing.Dict[str, float]:
+             log_level: typing.Union[str, int] = logging.INFO,
+             max_seq_len: int = 512) -> typing.Dict[str, float]:
     local_rank = -1  # TAPE does not support torch.distributed.launch for evaluation
     device, n_gpu, is_master = utils.setup_distributed(local_rank, no_cuda)
     utils.setup_logging(local_rank, save_path=None, log_level=log_level)
@@ -573,7 +574,7 @@ def run_eval(model_type: str,
 
     runner = ForwardRunner(model, device, n_gpu)
     runner.initialize_distributed_model()
-    valid_dataset = utils.setup_dataset(task, data_dir, split, tokenizer)
+    valid_dataset = utils.setup_dataset(task, data_dir, split, tokenizer, max_seq_len)
     valid_loader = utils.setup_loader(
         valid_dataset, batch_size, local_rank, n_gpu,
         1, num_workers)
