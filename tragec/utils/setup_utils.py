@@ -103,9 +103,15 @@ def setup_dataset(task: str,
                   data_dir: typing.Union[str, Path],
                   split: str,
                   tokenizer: str,
-                  max_seq_len: int = None) -> GeCDataset:
+                  max_seq_len: int = None,
+                  percentmasked=None) -> GeCDataset:
+
     task_spec = registry.get_task_spec(task)
-    return task_spec.dataset(data_dir, split, tokenizer, max_seq_len=max_seq_len)  # type: ignore
+    if percentmasked is None:
+        return task_spec.dataset(data_dir, split, tokenizer, max_seq_len=max_seq_len)  # type: ignore
+    else:
+        return task_spec.dataset(data_dir, split, tokenizer, max_seq_len=max_seq_len, percentmasked=percentmasked)
+
 
 
 def setup_loader(dataset: GeCDataset,
