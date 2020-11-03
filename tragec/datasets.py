@@ -227,10 +227,10 @@ class GeCClassificationDataset(Dataset):
                  split: str):
         super().__init__()
 
-        if split not in ('train', 'valid', 'holdout'):
+        if split not in ('train', 'valid'):
             raise ValueError(
                 f"Unrecognized split: {split}. "
-                f"Must be one of ['train', 'valid', 'holdout']")
+                f"Must be one of ['train', 'valid']")
 
         data_path = Path(data_path)
 
@@ -242,9 +242,12 @@ class GeCClassificationDataset(Dataset):
 
     def __getitem__(self, index: int):
         item = self.data[index]
-        gene_reps = item['gene_reps']
+        gene_reps = np.vstack([np.frombuffer(v,dtype=np.float32) for v in item['Protein Vectors']])
         input_mask = np.ones_like(gene_reps)
-        return gene_reps, input_mask, item['gec_type'], item['strands'], item['lengths']
+        strands = np.array(item['Protein Strands'])
+        lengths = np.array(item['Protein Lengths'])
+
+        return gene_reps, input_mask, item['gec_type'], strands, lengths
 
     def collate_fn(batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]) \
             -> Dict[str, torch.Tensor]:
