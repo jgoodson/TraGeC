@@ -1,4 +1,5 @@
 import random
+import math
 from copy import copy
 from pathlib import Path
 from typing import Union, List, Any, Dict, Tuple, Callable
@@ -154,15 +155,21 @@ class MaskedReconstructionDataset(GeCDataset):
     def _apply_pseudobert_mask(gene_reps: np.ndarray, percentmasked=.15) -> Tuple[np.ndarray, np.ndarray]:
         masked_gene_reps = copy(gene_reps)
         rep_size = len(gene_reps[0])
+        gene_num = gene_reps.size(0)
         targets = np.zeros_like(masked_gene_reps)
-
+        num_masked = percentmasked * gene_num
+        num_masked = math.ceil(num_masked)
+        num_unmasked = gene_num - num_masked
+        masked_array = np.array([1] * num_masked + [0] * num_unmasked)
+        np.random.shuffle(masked_array)
         for i, gene_rep in enumerate(gene_reps):
             # Tokens begin and end with start_token and stop_token, ignore these
 
             prob = random.random()
             #PercentMasked-A decimal less than .8 but greater than 0
-            if prob < percentmasked:
-                prob /= percentmasked
+            if masked_array[i] == 1:
+                #prob /= percentmasked
+                #I think I can just get rid of this line and the probability will remain random
                 targets[i] = gene_rep
 
                 if prob < 0.8:
