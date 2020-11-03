@@ -7,18 +7,9 @@ import sys
 
 import torch
 import torch.distributed as dist
+import torch.optim as optim
 from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
-
-try:
-    from apex.optimizers import FusedAdam as AdamW
-    from apex.optimizers import FusedLAMB as LAMB
-    from apex.optimizers import FusedNovoGrad as NovoGrad
-    from apex.optimizers import FusedSGD as SGD
-    APEX_FOUND = True
-except (ModuleNotFoundError, ImportError, RuntimeError):
-    from torch.optim import AdamW
-    APEX_FOUND = False
 
 from ..registry import registry
 from ..datasets import GeCDataset
@@ -94,15 +85,42 @@ def setup_optimizer(model,
         },
     ]
     if optimizer == 'adamw':
-        optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate)
-    elif APEX_FOUND and optimizer == 'lamb':
-        optimizer = LAMB(optimizer_grouped_parameters, lr=learning_rate)
-    elif APEX_FOUND and optimizer == 'sgd':
-        optimizer = SGD(optimizer_grouped_parameters, lr=learning_rate)
-    elif APEX_FOUND and optimizer == 'novograd':
-        optimizer = NovoGrad(optimizer_grouped_parameters, lr=learning_rate)
-    else:
-        raise NotImplemented()
+        try:
+            from apex.optimizers import FusedAdam as AdamW
+            optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate)
+        except RuntimeError:
+            optimizer = optim.AdamW(optimizer_grouped_parameters, lr=learning_rate)
+    elif optimizer == 'lamb':
+        try:
+            from apex.optimizers import FusedLAMB as LAMB
+            optimizer = LAMB(optimizer_grouped_parameters, lr=learning_rate)
+        except RuntimeError:
+            from torch_optimizer import LAMB
+            optimizer = LAMB(optimizer_grouped_parameters, lr=learning_rate)
+    elif optimizer == 'sgd':
+        try:
+            from apex.optimizers import FusedSGD as SGD
+            optimizer = SGD(optimizer_grouped_parameters, lr=learning_rate)
+        except RuntimeError:
+            optimizer = optim.SGD(optimizer_grouped_parameters, lr=learning_rate)
+    elif optimizer == 'novograd':
+        try:
+            from apex.optimizers import FusedNovoGrad as NovoGrad
+            optimizer = NovoGrad(optimizer_grouped_parameters, lr=learning_rate)
+        except RuntimeError:
+            from torch_optimizer import NovoGrad
+            optimizer = NovoGrad(optimizer_grouped_parameters, lr=learning_rate)
+    elif isinstance(optimizer, str):
+        OPT = getattr(optim, optimizer, False)
+        if OPT:
+            optimizer = OPT(optimizer_grouped_parameters, lr=learning_rate)
+        else:
+            import torch_optimizer
+            OPT = getattr(torch_optimizer, optimizer, False)
+            if OPT:
+                optimizer = OPT(optimizer_grouped_parameters, lr=learning_rate)
+            else:
+                raise NotImplemented("Specified optimizer {optimizer} is not available")
     return optimizer
 
 
@@ -110,9 +128,9 @@ def setup_dataset(task: str,
                   data_dir: typing.Union[str, Path],
                   split: str,
                   tokenizer: str,
-                  max_seq_len: int = None) -> GeCDataset:
+                  **kwargs) -> GeCDataset:
     task_spec = registry.get_task_spec(task)
-    return task_spec.dataset(data_dir, split, tokenizer, max_seq_len=max_seq_len)  # type: ignore
+    return task_spec.dataset(data_dir, split, tokenizer, **kwargs)  # type: ignore
 
 
 def setup_loader(dataset: GeCDataset,

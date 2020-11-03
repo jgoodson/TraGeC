@@ -90,7 +90,8 @@ class MaskedReconstructionDataset(GeCDataset):
                  split: str,
                  in_memory: bool = False,
                  seqvec_type: str = 'seqvec',
-                 max_seq_len: int = 512):
+                 max_seq_len: int = 512,
+                 **kwargs):
         super().__init__()
         if split not in ('train', 'valid', 'holdout'):
             raise ValueError(
@@ -194,7 +195,8 @@ class EmbedDataset(GeCDataset):
 
     def __init__(self,
                  data_file: Union[str, Path],
-                 in_memory: bool = False):
+                 in_memory: bool = False,
+                 **kwargs):
         super().__init__()
         self.data = dataset_factory(data_file, in_memory=in_memory)
 
@@ -224,7 +226,8 @@ class GeCClassificationDataset(Dataset):
 
     def __init__(self,
                  data_path: Union[str, Path],
-                 split: str):
+                 split: str,
+                 **kwargs):
         super().__init__()
 
         if split not in ('train', 'valid', 'holdout'):

@@ -71,7 +71,7 @@ class GeCEmbeddings(nn.Module):
         self.generep_embeddings = nn.Linear(
             config.input_rep_size, config.hidden_size)
         if position_embeddings:
-            self.position_embeddings: nn.Embedding = nn.Embedding(config.max_position_embeddings, config.hidden_size)
+            self.position_embeddings: nn.Embedding = nn.Embedding(config.gene_max_length, config.hidden_size)
         self.direction_embeddings: nn.Embedding = nn.Embedding(3, config.hidden_size)
         self.length_embeddings: nn.Embedding = nn.Embedding(config.gene_max_length // config.gene_length_bin_size + 1,
                                                             config.hidden_size)
