@@ -115,7 +115,11 @@ def setup_optimizer(model,
         if OPT:
             optimizer = OPT(optimizer_grouped_parameters, lr=learning_rate)
         else:
-            import torch_optimizer
+            try:
+                import torch_optimizer
+            except ImportError:
+                raise NotImplemented(
+                    "Specified optimizer {optimizer} is not available and torch_optimizer not available")
             OPT = getattr(torch_optimizer, optimizer, False)
             if OPT:
                 optimizer = OPT(optimizer_grouped_parameters, lr=learning_rate)

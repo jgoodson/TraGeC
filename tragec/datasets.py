@@ -167,11 +167,11 @@ class MaskedReconstructionDataset(GeCDataset):
     def _apply_pseudobert_mask(gene_reps: np.ndarray, percentmasked=.15) -> Tuple[np.ndarray, np.ndarray]:
         masked_gene_reps = copy(gene_reps)
         rep_size = len(gene_reps[0])
-        num_genes = gene_reps.size(0)
+        num_genes = gene_reps.shape[0]
         targets = np.zeros_like(masked_gene_reps)
 
         num_masked = math.ceil(percentmasked * num_genes)
-        masked_array = np.array([1] * num_masked + [0] * (num_genes - num_masked)
+        masked_array = np.array([1] * num_masked + [0] * (num_genes - num_masked))
         np.random.shuffle(masked_array)
         for i, gene_rep in enumerate(gene_reps):
             # Tokens begin and end with start_token and stop_token, ignore these
