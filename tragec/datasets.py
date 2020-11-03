@@ -234,7 +234,7 @@ class GeCClassificationDataset(Dataset):
 
         data_path = Path(data_path)
 
-        data_file = f'refseq/bmcs_{split}.lmdb'
+        data_file = f'axen/bmcs_{split}.lmdb'
         self.data = LMDBDataset(data_path / data_file, )
 
     def __len__(self) -> int:
@@ -243,8 +243,8 @@ class GeCClassificationDataset(Dataset):
     def __getitem__(self, index: int):
         item = self.data[index]
         gene_reps = np.vstack([np.frombuffer(v,dtype=np.float32) for v in item['Protein Vectors']])
-        input_mask = np.ones_like(gene_reps)
-        strands = np.array(item['Protein Strands'])
+        input_mask = np.ones(len(gene_reps))
+        strands = np.array([1 if x=='+' else -1 for x in item['Protein Strands']])
         lengths = np.array(item['Protein Lengths'])
 
         return gene_reps, input_mask, item['gec_type'], strands, lengths
