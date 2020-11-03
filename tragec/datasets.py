@@ -166,7 +166,7 @@ class MaskedReconstructionDataset(GeCDataset):
             # Tokens begin and end with start_token and stop_token, ignore these
 
             prob = random.random()
-            #PercentMasked-A decimal less than .8 but greater than 0
+            #PercentMasked-A decimal less than 1 but greater than 0
             if masked_array[i] == 1:
                 #prob /= percentmasked
                 #I think I can just get rid of this line and the probability will remain random
