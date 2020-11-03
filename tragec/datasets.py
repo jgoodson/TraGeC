@@ -224,7 +224,8 @@ class GeCClassificationDataset(Dataset):
 
     def __init__(self,
                  data_path: Union[str, Path],
-                 split: str):
+                 split: str, 
+                 max_seq_len: int = 512):
         super().__init__()
 
         if split not in ('train', 'valid'):
