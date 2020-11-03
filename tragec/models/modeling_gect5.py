@@ -81,7 +81,7 @@ class GeCT5Model(GeCT5AbstractModel):
     def __init__(self, config):
         super().__init__(config)
 
-        self.embedding = GeCEmbeddings(config)
+        self.embedding = GeCEmbeddings(config, position_embeddings=False)
 
         self.model = T5Stack(config)
 

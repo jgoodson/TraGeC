@@ -436,8 +436,13 @@ def run_train(model_type: str,
     utils.setup_logging(local_rank, save_path, log_level)
     utils.set_random_seeds(seed, n_gpu)
 
-    train_dataset = utils.setup_dataset(task, data_dir, 'train', tokenizer, max_seq_len, percentmasked)
-    valid_dataset = utils.setup_dataset(task, data_dir, 'valid', tokenizer, max_seq_len, percentmasked)
+    extra_args = {
+        'max_seq_len': max_seq_len,
+         'percentmasked': percentmasked,
+    }
+    train_dataset = utils.setup_dataset(task, data_dir, 'train', tokenizer, **extra_args)
+    valid_dataset = utils.setup_dataset(task, data_dir, 'valid', tokenizer, **extra_args)
+    
     train_loader = utils.setup_loader(
         train_dataset, batch_size, local_rank, n_gpu,
         gradient_accumulation_steps, num_workers)
@@ -560,6 +565,7 @@ def run_eval(model_type: str,
              log_level: typing.Union[str, int] = logging.INFO,
              max_seq_len = 512,
              percentmasked=None) -> typing.Dict[str, float]:
+
     local_rank = -1  # TAPE does not support torch.distributed.launch for evaluation
     device, n_gpu, is_master = utils.setup_distributed(local_rank, no_cuda)
     utils.setup_logging(local_rank, save_path=None, log_level=log_level)
@@ -576,7 +582,12 @@ def run_eval(model_type: str,
 
     runner = ForwardRunner(model, device, n_gpu)
     runner.initialize_distributed_model()
-    valid_dataset = utils.setup_dataset(task, data_dir, split, tokenizer, max_seq_len, percentmasked)
+
+    extra_args = {
+        'max_seq_len': max_seq_len,
+        'percentmasked': percentmasked,
+    }
+    valid_dataset = utils.setup_dataset(task, data_dir, split, tokenizer, **kwargs)
     valid_loader = utils.setup_loader(
         valid_dataset, batch_size, local_rank, n_gpu,
         1, num_workers)

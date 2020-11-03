@@ -41,7 +41,8 @@ class LMDBDataset(Dataset):
         if not data_file.exists():
             raise FileNotFoundError(data_file)
 
-        env = lmdb.open(str(data_file), max_readers=1, readonly=True,
+        self._data_file = str(data_file)
+        env = lmdb.open(self._data_file, max_readers=1, readonly=True,
                         lock=False, readahead=False, meminit=False)
 
         with env.begin(write=False) as txn:
@@ -63,6 +64,16 @@ class LMDBDataset(Dataset):
                 print(index, self._env.path())
         return item
 
+    def __getstate__(self):
+        dict = self.__dict__.copy()
+        del dict['_env']
+        return dict
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._env = lmdb.open(self._data_file, max_readers=1, readonly=True,
+                              lock=False, readahead=False, meminit=False)
+
 
 @registry.register_task('masked_recon_modeling')
 class MaskedReconstructionDataset(GeCDataset):
@@ -81,7 +92,8 @@ class MaskedReconstructionDataset(GeCDataset):
                  in_memory: bool = False,
                  seqvec_type: str = 'seqvec',
                  max_seq_len: int = 512,
-                 percentmasked=.15):
+                 percentmasked=.15,
+                 **kwargs):
         super().__init__()
         if split not in ('train', 'valid', 'holdout'):
             raise ValueError(
@@ -155,12 +167,11 @@ class MaskedReconstructionDataset(GeCDataset):
     def _apply_pseudobert_mask(gene_reps: np.ndarray, percentmasked=.15) -> Tuple[np.ndarray, np.ndarray]:
         masked_gene_reps = copy(gene_reps)
         rep_size = len(gene_reps[0])
-        gene_num = gene_reps.size(0)
+        num_genes = gene_reps.size(0)
         targets = np.zeros_like(masked_gene_reps)
-        num_masked = percentmasked * gene_num
-        num_masked = math.ceil(num_masked)
-        num_unmasked = gene_num - num_masked
-        masked_array = np.array([1] * num_masked + [0] * num_unmasked)
+
+        num_masked = math.ceil(percentmasked * num_genes)
+        masked_array = np.array([1] * num_masked + [0] * (num_genes - num_masked)
         np.random.shuffle(masked_array)
         for i, gene_rep in enumerate(gene_reps):
             # Tokens begin and end with start_token and stop_token, ignore these
@@ -193,7 +204,8 @@ class EmbedDataset(GeCDataset):
 
     def __init__(self,
                  data_file: Union[str, Path],
-                 in_memory: bool = False):
+                 in_memory: bool = False,
+                 **kwargs):
         super().__init__()
         self.data = dataset_factory(data_file, in_memory=in_memory)
 
@@ -223,7 +235,8 @@ class GeCClassificationDataset(Dataset):
 
     def __init__(self,
                  data_path: Union[str, Path],
-                 split: str):
+                 split: str,
+                 **kwargs):
         super().__init__()
 
         if split not in ('train', 'valid', 'holdout'):
