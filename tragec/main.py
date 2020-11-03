@@ -96,7 +96,7 @@ def create_train_parser(base_parser: argparse.ArgumentParser) -> argparse.Argume
     parser.add_argument('--max_seq_len', default=512, type=int,
                         help="Maximum sequence length for input data map")
     parser.add_argument('--percentmasked', default=None, type=float,
-                        help="What percent of data is masked. must be greater than 0 and less than .8")
+                        help="What percent of data is masked. must be greater than 0 and less than 1")
     return parser
 
 
