@@ -225,7 +225,7 @@ class GeCClassificationDataset(Dataset):
     def __init__(self,
                  data_path: Union[str, Path],
                  split: str,
-                 tokenizer=None, 
+                 *args, 
                  **kwargs):
         super().__init__()
 
