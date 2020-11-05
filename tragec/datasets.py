@@ -255,6 +255,7 @@ class GeCClassificationDataset(Dataset):
         item = self.data[index]
         return len(item['Protein Vectors'])
     
+    @staticmethod
     def collate_fn(batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]) \
             -> Dict[str, torch.Tensor]:
         gene_reps, input_mask, targets, strands, lengths = tuple(zip(*batch))
