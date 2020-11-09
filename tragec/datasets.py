@@ -253,7 +253,7 @@ class EmbedDataset(GeCDataset):
         return {'ids': ids, 'gene_reps': gene_reps, 'input_mask': input_mask}  # type: ignore
 
 
-@registry.register_task('classify_gec', num_labels=19)
+@registry.register_task('classify_gec', num_labels=7)
 class GeCClassificationDataset(Dataset):
 
     def __init__(self,
