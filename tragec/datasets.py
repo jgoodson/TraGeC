@@ -259,18 +259,18 @@ class GeCClassificationDataset(Dataset):
     def __init__(self,
                  data_path: Union[str, Path],
                  split: str,
-                 *args,
+                 *args, 
                  **kwargs):
         super().__init__()
 
-        if split not in ('train', 'valid', 'holdout'):
+        if split not in ('train', 'valid'):
             raise ValueError(
                 f"Unrecognized split: {split}. "
-                f"Must be one of ['train', 'valid', 'holdout']")
+                f"Must be one of ['train', 'valid']")
 
         data_path = Path(data_path)
 
-        data_file = f'refseq/bmcs_{split}.lmdb'
+        data_file = f'axen/bmcs_{split}.lmdb'
         self.data = LMDBDataset(data_path / data_file, )
 
     def __len__(self) -> int:
@@ -278,10 +278,18 @@ class GeCClassificationDataset(Dataset):
 
     def __getitem__(self, index: int):
         item = self.data[index]
-        gene_reps = item['gene_reps']
-        input_mask = np.ones_like(gene_reps)
-        return gene_reps, input_mask, item['gec_type'], item['strands'], item['lengths']
+        gene_reps = np.vstack([np.frombuffer(v,dtype=np.float32) for v in item['Protein Vectors']])
+        input_mask = np.ones(len(gene_reps))
+        strands = np.array([1 if x=='+' else -1 for x in item['Protein Strands']])
+        lengths = np.array(item['Protein Lengths'])
 
+        return gene_reps, input_mask, item['gec_type'], strands, lengths
+
+    def item_length(self, index):
+        item = self.data[index]
+        return len(item['Protein Vectors'])
+    
+    @staticmethod
     def collate_fn(batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]) \
             -> Dict[str, torch.Tensor]:
         gene_reps, input_mask, targets, strands, lengths = tuple(zip(*batch))
