@@ -1,17 +1,41 @@
 import random
+import math
 from copy import copy
 from pathlib import Path
-from typing import Union, List, Any, Dict, Tuple, Callable
+from typing import Union, List, Any, Dict, Tuple, Callable, Sequence
 from functools import partial
 
 import lmdb
 import bson
 import numpy as np
 import torch
-from tape.datasets import pad_sequences, dataset_factory
+from tape.datasets import dataset_factory
 from torch.utils.data import Dataset
 
 from .registry import registry
+
+
+def roundup(n, f=8):
+    return n + (f - n) % f
+
+
+def pad_sequences(sequences: Sequence, constant_value=0, dtype=None) -> np.ndarray:
+    batch_size = len(sequences)
+    shape = [batch_size] + np.max([tuple(roundup(s) for s in seq.shape) for seq in sequences], 0).tolist()
+
+    if dtype is None:
+        dtype = sequences[0].dtype
+
+    if isinstance(sequences[0], np.ndarray):
+        array = np.full(shape, constant_value, dtype=dtype)
+    elif isinstance(sequences[0], torch.Tensor):
+        array = torch.full(shape, constant_value, dtype=dtype)
+
+    for arr, seq in zip(array, sequences):
+        arrslice = tuple(slice(dim) for dim in seq.shape)
+        arr[arrslice] = seq
+
+    return array
 
 
 class GeCDataset(Dataset):
@@ -90,7 +114,9 @@ class MaskedReconstructionDataset(GeCDataset):
                  split: str,
                  in_memory: bool = False,
                  seqvec_type: str = 'seqvec',
-                 max_seq_len: int = 512):
+                 max_seq_len: int = 512,
+                 percentmasked=.15,
+                 **kwargs):
         super().__init__()
         if split not in ('train', 'valid', 'holdout'):
             raise ValueError(
@@ -105,6 +131,7 @@ class MaskedReconstructionDataset(GeCDataset):
         self.refseq = LMDBDataset(data_path / refseq_file, )
         array_decode = partial(np.frombuffer, dtype=np.float32)
         self.seqvec = LMDBDataset(data_path / seqvec_file, decode_method=array_decode)
+        self.percentmasked = percentmasked
 
     def __len__(self) -> int:
         return len(self.data)
@@ -129,7 +156,7 @@ class MaskedReconstructionDataset(GeCDataset):
 
         gene_reps = np.vstack([np.frombuffer(self.seqvec[h], dtype=np.float32) for h in hashes])
 
-        masked_reps, targets = self._apply_pseudobert_mask(gene_reps)
+        masked_reps, targets = self._apply_pseudobert_mask(gene_reps,self.percentmasked)
 
         input_mask = np.ones(len(masked_reps))
 
@@ -160,17 +187,23 @@ class MaskedReconstructionDataset(GeCDataset):
                 'lengths': lengths}
 
     @staticmethod
-    def _apply_pseudobert_mask(gene_reps: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def _apply_pseudobert_mask(gene_reps: np.ndarray, percentmasked=.15) -> Tuple[np.ndarray, np.ndarray]:
         masked_gene_reps = copy(gene_reps)
         rep_size = len(gene_reps[0])
+        num_genes = gene_reps.shape[0]
         targets = np.zeros_like(masked_gene_reps)
 
+        num_masked = math.ceil(percentmasked * num_genes)
+        masked_array = np.array([1] * num_masked + [0] * (num_genes - num_masked))
+        np.random.shuffle(masked_array)
         for i, gene_rep in enumerate(gene_reps):
             # Tokens begin and end with start_token and stop_token, ignore these
 
             prob = random.random()
-            if prob < 0.15:
-                prob /= 0.15
+            #PercentMasked-A decimal less than 1 but greater than 0
+            if masked_array[i] == 1:
+                #prob /= percentmasked
+                #I think I can just get rid of this line and the probability will remain random
                 targets[i] = gene_rep
 
                 if prob < 0.8:
@@ -194,7 +227,8 @@ class EmbedDataset(GeCDataset):
 
     def __init__(self,
                  data_file: Union[str, Path],
-                 in_memory: bool = False):
+                 in_memory: bool = False,
+                 **kwargs):
         super().__init__()
         self.data = dataset_factory(data_file, in_memory=in_memory)
 
@@ -219,7 +253,7 @@ class EmbedDataset(GeCDataset):
         return {'ids': ids, 'gene_reps': gene_reps, 'input_mask': input_mask}  # type: ignore
 
 
-@registry.register_task('classify_gec', num_labels=19)
+@registry.register_task('classify_gec', num_labels=7)
 class GeCClassificationDataset(Dataset):
 
     def __init__(self,

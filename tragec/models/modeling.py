@@ -9,7 +9,8 @@ from torch import nn
 try:
     from apex.normalization import FusedLayerNorm as LayerNorm
 
-except ImportError:
+    LayerNorm(1)
+except (ImportError, ModuleNotFoundError):
     from torch.nn import LayerNorm
 
 logger = logging.getLogger(__name__)
@@ -65,10 +66,12 @@ class GeCEmbeddings(nn.Module):
     """Construct the embeddings from gene, (strand and spacing embeddings).
     """
 
-    def __init__(self, config: GeCConfig):
+    def __init__(self, config: GeCConfig, position_embeddings=True):
         super().__init__()
         self.generep_embeddings = nn.Linear(
             config.input_rep_size, config.hidden_size)
+        if position_embeddings:
+            self.position_embeddings: nn.Embedding = nn.Embedding(config.gene_max_length, config.hidden_size)
         self.direction_embeddings: nn.Embedding = nn.Embedding(3, config.hidden_size)
         self.length_embeddings: nn.Embedding = nn.Embedding(config.gene_max_length // config.gene_length_bin_size + 1,
                                                             config.hidden_size)
@@ -95,6 +98,11 @@ class GeCEmbeddings(nn.Module):
                                                    self.gene_length_bin_size)
 
         embeddings = words_embeddings + direction_embeddings + length_embeddings
+        if hasattr(self, 'position_embeddings'):
+            position_ids = torch.arange(gene_reps.size(1), dtype=torch.long, device=gene_reps.device)
+            position_ids = position_ids.unsqueeze(0).expand(gene_reps.shape[:-1])
+            position_embeddings = self.position_embeddings(position_ids)
+            embeddings = embeddings + position_embeddings
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
         return embeddings
