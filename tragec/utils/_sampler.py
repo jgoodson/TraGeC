@@ -18,7 +18,7 @@ class SortedSampler(Sampler):
         sort_key (callable): Specifies a function of one argument that is used to extract a
             numerical comparison key from each list element.
     Example:
-        >>> list(SortedSampler(range(10), sort_key=lambda i: -i))
+        >>> list(SortedSampler(range(10)))
         [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
     """
 
@@ -28,8 +28,6 @@ class SortedSampler(Sampler):
         super().__init__(dataset)
         self.dataset = dataset
 
-        # This version drops sort_key from TAPE because pulling many embedded representations from the
-        # LMDB datasets is not cheap
         if indices is None:
             sort_keys = ((i, dataset.item_length(i)) for i in range(len(dataset)))
         else:

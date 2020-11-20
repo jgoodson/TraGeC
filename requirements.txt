@@ -4,6 +4,6 @@ tqdm
 filelock
 torch
 numpy
-pymongo
-tape_proteins==0.4
 transformers
+torch_optimizer
+pytorch_lightning

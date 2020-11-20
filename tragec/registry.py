@@ -1,33 +1,49 @@
 from pathlib import Path
 from typing import Dict, Type, Callable, Optional, Union
 
-from tape.registry import TAPETaskSpec
-from torch.utils.data import Dataset
-
-from .models.modeling import GeCModel
+from .models.modeling import GeCModel, GeCDataModule
 
 import json
 
 PathType = Union[str, Path]
 
 
-class GeCTaskSpec(TAPETaskSpec):
+class GeCTaskSpec(object):
     """
     Attributes
     ----------
     name (str):
         The name of the GeC task
-    dataset (Type[Dataset]):
-        The dataset used in the GeC task
+    datamodule (Type[GeCDataModule]):
+        The datamodule used in the GeC task
     num_labels (int):
         number of labels used if this is a classification task
     models (Dict[str, GeCModel]):
         The set of models that can be used for this task. Default: {}.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self,
+                 name: str,
+                 datamodule: Type[GeCDataModule],
+                 num_labels: int = -1,
+                 models: Optional[Dict[str, Type[GeCModel]]] = None):
+        self.name = name
+        self.datamodule = datamodule
+        self.num_labels = num_labels
+        self.models = models if models is not None else {}
 
+    def register_model(self, model_name: str, model_cls: Optional[Type[GeCModel]] = None):
+        if model_cls is not None:
+            if model_name in self.models:
+                raise KeyError(
+                    f"A model with name '{model_name}' is already registered for this task")
+            self.models[model_name] = model_cls
+            return model_cls
+        else:
+            return lambda model_cls: self.register_model(model_name, model_cls)
+
+    def get_model(self, model_name: str) -> Type[GeCModel]:
+        return self.models[model_name]
 
 class Registry:
     r"""Class for registry object which acts as the
@@ -40,7 +56,7 @@ class Registry:
     def register_task(cls,
                       task_name: str,
                       num_labels: int = -1,
-                      dataset: Optional[Type[Dataset]] = None,
+                      datamodule: Optional[Type[GeCDataModule]] = None,
                       models: Optional[Dict[str, Type[GeCModel]]] = None):
         """ Register a a new tragec task. This creates a new GeCTaskSpec.
 
@@ -49,49 +65,19 @@ class Registry:
             task_name (str): The name of the tragec task.
             num_labels (int): Number of labels used if this is a classification task. If this
                 is not a classification task, simply leave the default as -1.
-            dataset (Type[Dataset]): The dataset used in the tragec task.
+            datamodule (Type[GeCDataModule]): The data module used in the tragec task.
             models (Optional[Dict[str, GeCModel]]): The set of models that can be used for
                 this task. If you do not pass this argument, you can register models to the task
                 later by using `registry.register_task_model`. Default: {}.
 
-        Examples:
-
-        There are two ways of registering a new task. First, one can define the task by simply
-        declaring all the components, and then calling the register method, like so:
-
-            class SecondaryStructureDataset(Dataset):
-                ...
-
-            class ProteinBertForSequenceToSequenceClassification():
-                ...
-
-            registry.register_task(
-                'secondary_structure', 3, SecondaryStructureDataset,
-                {'transformer': ProteinBertForSequenceToSequenceClassification})
-
-        This will register a new task, 'secondary_structure', with a single model. More models
-        can be added with `registry.register_task_model`. Alternatively, this can be used as a
-        decorator:
-
-            @registry.regsiter_task('secondary_structure', 3)
-            class SecondaryStructureDataset(Dataset):
-                ...
-
-            @registry.register_task_model('secondary_structure', 'transformer')
-            class ProteinBertForSequenceToSequenceClassification():
-                ...
-
-        These two pieces of code are exactly equivalent, in terms of the resulting registry
-        state.
-
         """
-        if dataset is not None:
+        if datamodule is not None:
             if models is None:
                 models = {}
-            task_spec = GeCTaskSpec(task_name, dataset, num_labels, models)
-            return cls.register_task_spec(task_name, task_spec).dataset
+            task_spec = GeCTaskSpec(task_name, datamodule, num_labels, models)
+            return cls.register_task_spec(task_name, task_spec).datamodule
         else:
-            return lambda dataset: cls.register_task(task_name, num_labels, dataset, models)
+            return lambda datamodule: cls.register_task(task_name, num_labels, datamodule, models)
 
     @classmethod
     def register_task_spec(cls, task_name: str, task_spec: Optional[GeCTaskSpec] = None):
@@ -149,28 +135,6 @@ class Registry:
         return cls.task_name_mapping[task_name].register_model(model_name, model_cls)
 
     @classmethod
-    def register_metric(cls, name: str) -> Callable[[Callable], Callable]:
-        r"""Register a metric to registry with key 'name'
-
-        Args:
-            name: Key with which the metric will be registered.
-
-        Usage::
-            from tragec.registry import registry
-
-            @registry.register_metric('mse')
-            def mean_squred_error(inputs, outputs):
-                ...
-        """
-
-        def wrap(fn: Callable) -> Callable:
-            assert callable(fn), "All metrics must be callable"
-            cls.metric_name_mapping[name] = fn
-            return fn
-
-        return wrap
-
-    @classmethod
     def get_task_spec(cls, name: str) -> GeCTaskSpec:
         return cls.task_name_mapping[name]
 
@@ -212,6 +176,27 @@ class Registry:
             config.num_labels = task_spec.num_labels
             model = model_cls(config)
         return model
+
+    @classmethod
+    def get_task_datamodule(cls,
+                            task_name: str,
+                            data_dir: str,
+                            batch_size: int,
+                            seqvec_type: str,
+                            max_seq_len: int,
+                            num_workers: int,
+                            **kwargs) -> GeCDataModule:
+        """ Create a tragec task model, either from scratch or from a pretrained model.
+            This is mostly a helper function that evaluates the if statements in a
+            sensible order if you pass all three of the arguments.
+        Args:
+            task_name (str): The tragec task for which to create a model
+        Returns:
+            module (GeCDataModule): A tragec task data module
+        """
+        task_spec = registry.get_task_spec(task_name)
+        return task_spec.datamodule(data_dir, batch_size, seqvec_type, max_seq_len, num_workers,
+                                    **kwargs)
 
 
 registry = Registry()

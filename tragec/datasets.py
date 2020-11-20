@@ -9,10 +9,9 @@ import lmdb
 import bson
 import numpy as np
 import torch
-from tape.datasets import dataset_factory
 from torch.utils.data import Dataset
 
-from .registry import registry
+from tragec.utils.codec import decode_document
 
 
 def roundup(n, f=8):
@@ -38,6 +37,22 @@ def pad_sequences(sequences: Sequence, constant_value=0, dtype=None) -> np.ndarr
     return array
 
 
+def dataset_factory(data_file: Union[str, Path], *args, **kwargs) -> Dataset:
+    data_file = Path(data_file)
+    if not data_file.exists():
+        raise FileNotFoundError(data_file)
+    if data_file.suffix == '.lmdb':
+        return LMDBDataset(data_file, *args, **kwargs)
+    # elif data_file.suffix in {'.fasta', '.fna', '.ffn', '.faa', '.frn'}:
+    #    return FastaDataset(data_file, *args, **kwargs)
+    # elif data_file.suffix == '.json':
+    #    return JSONDataset(data_file, *args, **kwargs)
+    # elif data_file.is_dir():
+    #    return NPZDataset(data_file, *args, **kwargs)
+    else:
+        raise ValueError(f"Unrecognized datafile type {data_file.suffix}")
+
+
 class GeCDataset(Dataset):
 
     def item_length(self, index):
@@ -49,17 +64,16 @@ class GeCDataset(Dataset):
 
 
 class LMDBDataset(Dataset):
-    """Creates a dataset from an lmdb file.
+    """Creates a datamodule from an lmdb file.
     Args:
         data_file (Union[str, Path]): Path to lmdb file.
-        in_memory (bool, optional): Whether to load the full dataset into memory.
+        in_memory (bool, optional): Whether to load the full datamodule into memory.
             Default: False.
     """
 
     def __init__(self,
                  data_file: Union[str, Path],
-                 decode_method: Callable = bson.decode,
-                 buffers=True):
+                 decode_method: Callable = lambda b: decode_document(b, 0)[1]):
         data_file = Path(data_file)
         if not data_file.exists():
             raise FileNotFoundError(data_file)
@@ -74,17 +88,14 @@ class LMDBDataset(Dataset):
         self._env = env
         self._num_examples = num_examples
         self.decode_method = decode_method
-        self.buffers = buffers
 
     def __len__(self) -> int:
         return self._num_examples
 
     def __getitem__(self, index: Union[int, str]):
-        with self._env.begin(write=False, buffers=self.buffers) as txn:
-            try:
-                item = self.decode_method(txn.get(str(index).encode()))
-            except TypeError:
-                print(index, self._env.path())
+        with self._env.begin(write=False) as txn:
+            item = self.decode_method(txn.get(str(index).encode()))
+
         return item
 
     def __getstate__(self):
@@ -98,14 +109,13 @@ class LMDBDataset(Dataset):
                               lock=False, readahead=False, meminit=False)
 
 
-@registry.register_task('masked_recon_modeling')
 class MaskedReconstructionDataset(GeCDataset):
     """Creates the Masked Reconstruction Modeling RefSeq Dataset
 
     Args:
         data_path (Union[str, Path]): Path to tragec data root.
         split (str): One of ['train', 'valid', 'holdout'], specifies which data file to load.
-        in_memory (bool, optional): Whether to load the full dataset into memory.
+        in_memory (bool, optional): Whether to load the full datamodule into memory.
             Default: False.
     """
 
@@ -170,6 +180,7 @@ class MaskedReconstructionDataset(GeCDataset):
     @staticmethod
     def collate_fn(batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]) \
             -> Dict[str, torch.Tensor]:
+        print(batch)
         gene_reps, input_mask, targets, strands, lengths = tuple(zip(*batch))
 
         gene_reps = torch.from_numpy(pad_sequences(gene_reps, 0))
@@ -221,7 +232,6 @@ class MaskedReconstructionDataset(GeCDataset):
         return np.array(masked_gene_reps), targets
 
 
-@registry.register_task('embed_gec')
 class EmbedDataset(GeCDataset):
     # TODO: find out if this actually works or if I test it anywhere
 
@@ -242,7 +252,7 @@ class EmbedDataset(GeCDataset):
         return item['id'], gene_reps, input_mask
 
     def item_length(self, index):
-        return len(self[index])
+        return len(self[index]['primary'])
 
     @staticmethod
     def collate_fn(batch: List[Tuple[Any, ...]]) -> Dict[str, torch.Tensor]:
@@ -253,7 +263,6 @@ class EmbedDataset(GeCDataset):
         return {'ids': ids, 'gene_reps': gene_reps, 'input_mask': input_mask}  # type: ignore
 
 
-@registry.register_task('classify_gec', num_labels=7)
 class GeCClassificationDataset(Dataset):
 
     def __init__(self,
@@ -263,14 +272,14 @@ class GeCClassificationDataset(Dataset):
                  **kwargs):
         super().__init__()
 
-        if split not in ('train', 'valid', 'holdout'):
+        if split not in ('train', 'valid'):
             raise ValueError(
                 f"Unrecognized split: {split}. "
-                f"Must be one of ['train', 'valid', 'holdout']")
+                f"Must be one of ['train', 'valid']")
 
         data_path = Path(data_path)
 
-        data_file = f'refseq/bmcs_{split}.lmdb'
+        data_file = f'axen/bmcs_{split}.lmdb'
         self.data = LMDBDataset(data_path / data_file, )
 
     def __len__(self) -> int:
@@ -278,12 +287,22 @@ class GeCClassificationDataset(Dataset):
 
     def __getitem__(self, index: int):
         item = self.data[index]
-        gene_reps = item['gene_reps']
-        input_mask = np.ones_like(gene_reps)
-        return gene_reps, input_mask, item['gec_type'], item['strands'], item['lengths']
+        gene_reps = np.vstack([np.frombuffer(v, dtype=np.float32) for v in item['Protein Vectors']])
+        input_mask = np.ones(len(gene_reps))
+        strands = np.array([1 if x == '+' else -1 for x in item['Protein Strands']])
+        lengths = np.array(item['Protein Lengths'])
 
+        return gene_reps, input_mask, item['gec_type'], strands, lengths
+
+    def item_length(self, index):
+        item = self.data[index]
+        return len(item['Protein Vectors'])
+
+    @staticmethod
     def collate_fn(batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]) \
             -> Dict[str, torch.Tensor]:
+        with open('test', 'w') as o:
+            o.write(str(batch))
         gene_reps, input_mask, targets, strands, lengths = tuple(zip(*batch))
 
         gene_reps = torch.from_numpy(pad_sequences(gene_reps, 0))
