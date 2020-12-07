@@ -128,8 +128,8 @@ class GeCBertForSequenceClassification(GeCT5AbstractModel):
                 lengths=None):
         outputs = self.model(gene_reps, input_mask=input_mask, strands=strands, lengths=lengths)
 
-        sequence_output, pooled_output = outputs[:2]
+        sequence_output = outputs[0]
 
-        outputs = self.classify(pooled_output, targets) + outputs[2:]
+        outputs = self.classify(sequence_output.mean(1), targets) + outputs[2:]
         # (loss), prediction_scores, (hidden_states), (attentions)
         return outputs
