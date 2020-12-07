@@ -22,6 +22,7 @@ import torch
 from torch import nn
 from transformers.modeling_t5 import T5Config
 from tape.models.modeling_utils import LayerNorm
+from tape.models.modeling_utils import SequenceClassificationHead
 
 from tragec.registry import registry
 from .modeling import GeCConfig, GeCModel, GeCEmbeddings, GeCMaskedRecon
@@ -105,3 +106,30 @@ class GeCT5ForMaskedRecon(GeCMaskedRecon, GeCT5AbstractModel):
         self.model = GeCT5Model(config)
 
         self.init_weights()
+
+
+@registry.register_task_model('classify_gec', 't5enc')
+class GeCBertForSequenceClassification(GeCT5AbstractModel):
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        self.model = GeCT5Model(config)
+        self.classify = SequenceClassificationHead(
+            config.hidden_size, config.num_labels)
+
+        self.init_weights()
+
+    def forward(self,
+                gene_reps,
+                targets=None,
+                input_mask=None,
+                strands=None,
+                lengths=None):
+        outputs = self.model(gene_reps, input_mask=input_mask, strands=strands, lengths=lengths)
+
+        sequence_output, pooled_output = outputs[:2]
+
+        outputs = self.classify(pooled_output, targets) + outputs[2:]
+        # (loss), prediction_scores, (hidden_states), (attentions)
+        return outputs
