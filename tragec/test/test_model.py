@@ -3,10 +3,9 @@ import unittest
 import numpy as np
 import torch
 
-from tragec.datasets import MaskedReconstructionDataset
-from tragec.models.modeling_gecbert import GeCBertModel, GeCBertConfig, GeCBertForMaskedRecon
-
-# from tragec.models.modeling_gect5 import GeCT5Config, GeCT5Model, GeCT5ForMaskedRecon
+from tragec.datasets import GeCMaskedReconstructionDataset
+from tragec.models.models_bert import GeCBertModel, BioBertConfig, GeCBertForMaskedRecon
+from tragec.models.models_t5 import BioT5Config, GeCT5Model, GeCT5ForMaskedRecon
 
 test_config_kwargs = dict(
     hidden_size=128,
@@ -23,7 +22,7 @@ test_config_kwargs = dict(
 class TestGeCBertRaw(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.config = GeCBertConfig(**test_config_kwargs)
+        self.config = BioBertConfig(**test_config_kwargs)
         self.model = GeCBertModel(self.config)
 
     def simpleForwardZeros(self, shape, strands: bool = None, lengths: int = None):
@@ -58,31 +57,31 @@ class TestGeCBertRecon(unittest.TestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.config = GeCBertConfig(**test_config_kwargs)
+        self.config = BioBertConfig(**test_config_kwargs)
         self.model = GeCBertForMaskedRecon(self.config)
         self.size = (1, 100, 128)
 
     def test_forward(self) -> None:
         target = torch.ones(self.size)
-        seq_output = self.model(torch.zeros(self.size), targets=target)
+        seq_output = self.model(torch.zeros(self.size), targets=target)[0]
         self.assertEqual(seq_output.shape, self.size)
 
     def test_backward(self) -> None:
         data = np.random.standard_normal(self.size[1:])
         data = data.astype(np.float32)
-        m, t = MaskedReconstructionDataset._apply_pseudobert_mask(data)
-        batch = MaskedReconstructionDataset.collate_fn(
+        m, t = GeCMaskedReconstructionDataset._apply_pseudobert_mask(data)
+        batch = GeCMaskedReconstructionDataset.collate_fn(
             [(m, np.ones(len(m)), t, np.ones(self.size[1]), np.ones(self.size[1]) * 100)]
         )
         loss = self.model.training_step(batch, None)
         loss.backward()
 
 
-'''
+
 class TestGeCT5Raw(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.config = GeCT5Config(**test_config_kwargs)
+        self.config = BioT5Config(**test_config_kwargs)
         self.model = GeCT5Model(self.config)
 
     def simpleForwardZeros(self, shape, strands=None, lengths=None):
@@ -107,10 +106,17 @@ class TestGeCT5Raw(unittest.TestCase):
         self.simpleForwardZeros((1, 100, 128), lengths=torch.ones((1, 100), dtype=torch.long) * 100000)
 
 
+class TestGeCBertRawCP(TestGeCBertRaw):
+
+    def setUp(self) -> None:
+        self.config = BioBertConfig(gradient_checkpointing=True, **test_config_kwargs)
+        self.model = GeCBertModel(self.config)
+
+
 class TestGeCT5RawCP(TestGeCT5Raw):
 
     def setUp(self) -> None:
-        self.config = GeCT5Config(gradient_checkpointing=True, **test_config_kwargs)
+        self.config = BioT5Config(gradient_checkpointing=True, **test_config_kwargs)
         self.model = GeCT5Model(self.config)
 
 
@@ -118,7 +124,7 @@ class TestGeCT5Recon(TestGeCBertRecon):
 
     def setUp(self) -> None:
         super().setUp()
-        self.config = GeCT5Config(**test_config_kwargs)
+        self.config = BioT5Config(**test_config_kwargs)
         self.model = GeCT5ForMaskedRecon(self.config)
         self.size = (1, 100, 128)
 
@@ -131,10 +137,10 @@ class TestGeCT5ReconCP(TestGeCT5Recon):
 
     def setUp(self) -> None:
         super().setUp()
-        self.config = GeCT5Config(gradient_checkpointing=True, **test_config_kwargs)
+        self.config = BioT5Config(gradient_checkpointing=True, **test_config_kwargs)
         self.model = GeCT5ForMaskedRecon(self.config)
         self.size = (1, 100, 128)
-'''
+
 
 if __name__ == '__main__':
     unittest.main()

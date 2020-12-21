@@ -3,32 +3,33 @@
 from torch import nn
 from transformers import BertModel, BertConfig
 
-from tragec.registry import registry
-from .modeling import GeCConfig, GeCModel, GeCEmbeddings, LayerNorm
-from .modeling_mrm import GeCMaskedRecon
-from .modeling_singleclass import GeCSequenceClassification
+from .modeling import BioConfig, BioModel, GeCEmbeddings, ProteinEmbeddings, LayerNorm
+from ..tasks.registry import create_and_register_models
 
 URL_PREFIX = "https://storage.googleapis.com/fire-tod.tryps.in/pytorch-models/"
 BERT_PRETRAINED_MODEL_ARCHIVE_MAP = {}
 BERT_PRETRAINED_CONFIG_ARCHIVE_MAP = {}
 
 
-class GeCBertConfig(GeCConfig, BertConfig):
+class BioBertConfig(BertConfig, BioConfig):
     pretrained_config_archive_map = BERT_PRETRAINED_CONFIG_ARCHIVE_MAP
 
     def __init__(self,
+                 max_position_embeddings: int = 8192,
                  **kwargs):
         super().__init__(**kwargs)
-        BertConfig.__init__(self, **kwargs)
+        BioConfig.__init__(self, **kwargs)
+        self.return_dict = True
+        self.max_position_embeddings = max_position_embeddings
 
 
-class GeCBertAbstractModel(GeCModel):
+class BioBertAbstractModel(BioModel):
     """ An abstract class to handle weights initialization and
         a simple interface for dowloading and loading pretrained models.
     """
-    config_class = GeCBertConfig
-    pretrained_model_archive_map = BERT_PRETRAINED_MODEL_ARCHIVE_MAP
     base_model_prefix = "bert"
+    config_class = BioBertConfig
+    pretrained_model_archive_map = BERT_PRETRAINED_MODEL_ARCHIVE_MAP
 
     def _init_weights(self, module):
         """ Initialize the weights """
@@ -41,40 +42,36 @@ class GeCBertAbstractModel(GeCModel):
             module.bias.data.zero_()
 
 
-# @registry.register_task_model('embed_gec', 'transformer')
-class GeCBertModel(GeCBertAbstractModel):
+class BioBertModel(BioBertAbstractModel):
 
     def __init__(self, config):
         super().__init__(config)
-
-        self.embedding = GeCEmbeddings(config)
 
         self.model = BertModel(config)
 
         self.init_weights()
 
     def forward(self,
-                gene_reps,
+                sequence_rep,
                 input_mask=None,
-                strands=None,
-                lengths=None, ):
-        return self.model(inputs_embeds=self.embedding(gene_reps, strands=strands, lengths=lengths),
-                          attention_mask=input_mask)
+                **kwargs):
+        output = self.model(inputs_embeds=self.embedding(sequence_rep, **kwargs),
+                            attention_mask=input_mask)
+        return output['last_hidden_state'], output['pooler_output']
 
 
-@registry.register_task_model('masked_recon_modeling', 'transformer')
-class GeCBertForMaskedRecon(GeCBertAbstractModel, GeCMaskedRecon):
-
+class GeCBertModel(BioBertModel):
     def __init__(self, config):
         super().__init__(config)
-        self.model = GeCBertModel(config)
-        self.init_weights()
+
+        self.embedding = GeCEmbeddings(config)
 
 
-@registry.register_task_model('classify_gec', 'transformer')
-class GeCBertForSequenceClassification(GeCBertAbstractModel, GeCSequenceClassification):
-
+class ProteinBertModel(BioBertModel):
     def __init__(self, config):
         super().__init__(config)
-        self.model = GeCBertModel(config)
-        self.init_weights()
+
+        self.embedding = ProteinEmbeddings(config)
+
+
+create_and_register_models(locals(), BioBertAbstractModel, GeCBertModel, ProteinBertModel, 'bert')

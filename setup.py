@@ -19,7 +19,7 @@ def get_version():
 with open('README.md', 'r') as rf:
     README = rf.read()
 
-with open('LICENSE', 'r') as lf:
+with open('TAPE-LICENSE', 'r') as lf:
     LICENSE = lf.read()
 
 with open('requirements.txt', 'r') as reqs:

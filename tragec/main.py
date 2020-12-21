@@ -1,13 +1,16 @@
-import logging
+# From songlab-cal TAPE: https://github.com/songlab-cal/tape
+# Modified for TraGeC
+
 import argparse
 import inspect
+import logging
 import os
 import typing
 import warnings
 
-from .registry import registry
 from . import training
 from . import utils
+from .registry import registry
 
 CallbackList = typing.Sequence[typing.Callable]
 OutputDict = typing.Dict[str, typing.List[typing.Any]]
@@ -30,7 +33,7 @@ def create_base_parser() -> argparse.ArgumentParser:
                         help='Local rank of process in distributed training. '
                              'Set by launch script.')
     parser.add_argument('--seqvec_type', choices=['seqvec'],
-                        default='seqvec', help='Type of pre-computed sequence vectors')
+                        default='seqvec', help='Type of pre-computed sequence vectors for gec models')
     parser.add_argument('--num_workers', default=8, type=int,
                         help='Number of workers to use for multi-threaded data loading')
     parser.add_argument('--n_gpus', default=1, type=int,
@@ -70,6 +73,8 @@ def create_train_parser(base_parser: argparse.ArgumentParser) -> argparse.Argume
                         help='Name to give to this experiment')
     parser.add_argument('--from_pretrained', default=None, type=str,
                         help='Directory containing config and pretrained model weights')
+    parser.add_argument('--checkpoint_file', default=None, type=str,
+                        help='File containing the lightning checkpoint')
     parser.add_argument('--log_dir', default='./logs', type=str)
     parser.add_argument('--eval_freq', type=int, default=1.,
                         help="Frequency of eval pass per epoch. A value <= 0 means the eval pass is "
@@ -85,7 +90,7 @@ def create_train_parser(base_parser: argparse.ArgumentParser) -> argparse.Argume
     parser.add_argument('--optimizer', default='adamw', type=str,
                         help='Which optimizer to use (currently implemented: adamw, lamb, novograd, sgd)')
     parser.add_argument('--max_seq_len', default=512, type=int,
-                        help="Maximum sequence length for input data map")
+                        help="Maximum sequence length for sequence_rep data map")
     parser.add_argument('--percentmasked', default=.15, type=float,
                         help="What percent of data is masked. must be greater than 0 and less than 1")
     parser.add_argument('--train_frac', default=1., type=float,

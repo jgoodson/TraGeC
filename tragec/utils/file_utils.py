@@ -5,45 +5,42 @@ https://github.com/huggingface/transformers, which in turn is adapted from the A
 library at https://github.com/allenai/allennlp
 Copyright by the AllenNLP authors.
 Note - this file goes to effort to support Python 2, but the rest of this repository does not.
+
+From songlab-cal TAPE: https://github.com/songlab-cal/tape
 """
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
-import typing
-import sys
+import argparse
+import fnmatch
 import json
 import os
-import tempfile
-import fnmatch
-import argparse
-from io import open
 import random
+import sys
+import tempfile
+import typing
+from contextlib import contextmanager
+from functools import partial, wraps
+from hashlib import sha256
+from io import open
 from time import strftime, gmtime
+from urllib.parse import urlparse
 
 import boto3
 import requests
 from botocore.exceptions import ClientError
-from tqdm import tqdm
-
-from contextlib import contextmanager
-from functools import partial, wraps
-from hashlib import sha256
-
 from filelock import FileLock
+from tqdm import tqdm
 
 try:
     from torch.hub import _get_torch_home
 
     torch_cache_home = _get_torch_home()
 except ImportError:
+    _get_torch_home = None
     torch_cache_home = os.path.expanduser(
         os.getenv('TORCH_HOME', os.path.join(
             os.getenv('XDG_CACHE_HOME', '~/.cache'), 'torch')))
 default_cache_path = os.path.join(torch_cache_home, 'protein_models')
-
-try:
-    from urllib.parse import urlparse
-except ImportError:
-    from urlparse import urlparse  # type: ignore
 
 try:
     from pathlib import Path
@@ -59,10 +56,6 @@ except (AttributeError, ImportError):
 PROTEIN_MODELS_CACHE = PYTORCH_PRETRAINED_BERT_CACHE  # Kept for backward compatibility
 
 
-def get_cache():
-    return PROTEIN_MODELS_CACHE
-
-
 def get_etag(url):
     # Get eTag to add to filename, if it exists.
     if url.startswith("s3://"):
@@ -76,9 +69,6 @@ def get_etag(url):
                 etag = response.headers.get("ETag")
         except EnvironmentError:
             etag = None
-
-    if sys.version_info[0] == 2 and etag is not None:
-        etag = etag.decode('utf-8')
 
     return etag
 
@@ -101,32 +91,6 @@ def url_to_filename(url, etag=None):
     return filename
 
 
-def filename_to_url(filename, cache_dir=None):
-    """
-    Return the url and etag (which may be ``None``) stored for `filename`.
-    Raise ``EnvironmentError`` if `filename` or its stored metadata do not exist.
-    """
-    if cache_dir is None:
-        cache_dir = PROTEIN_MODELS_CACHE
-    if sys.version_info[0] == 3 and isinstance(cache_dir, Path):
-        cache_dir = str(cache_dir)
-
-    cache_path = os.path.join(cache_dir, filename)
-    if not os.path.exists(cache_path):
-        raise EnvironmentError("file {} not found".format(cache_path))
-
-    meta_path = cache_path + '.json'
-    if not os.path.exists(meta_path):
-        raise EnvironmentError("file {} not found".format(meta_path))
-
-    with open(meta_path, encoding="utf-8") as meta_file:
-        metadata = json.load(meta_file)
-    url = metadata['url']
-    etag = metadata['etag']
-
-    return url, etag
-
-
 def cached_path(url_or_filename, force_download=False, cache_dir=None):
     """
     Given something that might be a URL (or might be a local path),
@@ -135,6 +99,7 @@ def cached_path(url_or_filename, force_download=False, cache_dir=None):
     make sure the file exists and then return the path.
 
     Args:
+        url_or_filename: string containing the location of the file to find in cache
         cache_dir: specify a cache directory to save the file to
         (overwrite the default cache dir).
         force_download: if True, re-dowload the file even if it's
@@ -243,20 +208,8 @@ def get_from_cache(url, cache_dir=None, force_download=False, resume_download=Fa
         os.makedirs(cache_dir)
 
     # Get eTag to add to filename, if it exists.
-    if url.startswith("s3://"):
-        etag = s3_etag(url)
-    else:
-        try:
-            response = requests.head(url, allow_redirects=True)
-            if response.status_code != 200:
-                etag = None
-            else:
-                etag = response.headers.get("ETag")
-        except EnvironmentError:
-            etag = None
+    etag = get_etag(url)
 
-    if sys.version_info[0] == 2 and etag is not None:
-        etag = etag.decode('utf-8')
     filename = url_to_filename(url, etag)
 
     # get cache path to put the file

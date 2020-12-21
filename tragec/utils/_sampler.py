@@ -1,29 +1,32 @@
 """Implementation of a bucketed data sampler from PyTorch-NLP.
 Modified by Roshan Rao. (and then further)
 
+# From songlab-cal TAPE: https://github.com/songlab-cal/tape
+
 See https://github.com/PetrochukM/PyTorch-NLP/
 """
-import typing
 import math
 import operator
-from torch.utils.data.sampler import Sampler
+import typing
+
 from torch.utils.data.sampler import BatchSampler
+from torch.utils.data.sampler import Sampler
 from torch.utils.data.sampler import SubsetRandomSampler
+
+from tragec.datasets import BioDataset
 
 
 class SortedSampler(Sampler):
     """ Samples elements sequentially, always in the same order.
     Args:
-        data (iterable): Iterable data.
-        sort_key (callable): Specifies a function of one argument that is used to extract a
-            numerical comparison key from each list element.
-    Example:
+        dataset (iterable): Iterable data.
+     Example:
         >>> list(SortedSampler(range(10)))
         [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
     """
 
     def __init__(self,
-                 dataset,
+                 dataset: BioDataset,
                  indices: typing.Optional[typing.Iterable[int]]):
         super().__init__(dataset)
         self.dataset = dataset
@@ -58,12 +61,11 @@ class BucketBatchSampler(BatchSampler):
         batch_size (int): Size of mini-batch.
         drop_last (bool): If `True` the sampler will drop the last batch if its size
             would be less than `batch_size`.
-        sort_key (callable, optional): Callable to specify a comparison key for sorting.
         bucket_size_multiplier (int, optional): Buckets are of size
             `batch_size * bucket_size_multiplier`.
     Example:
-        >>> from torch.utils.data.sampler import SequentialSampler
-        >>> sampler = SequentialSampler(list(range(10)))
+        >>> import torch.utils.data.sampler
+        >>> sampler = torch.utils.data.sampler.SequentialSampler(list(range(10)))
         >>> list(BucketBatchSampler(sampler, batch_size=3, drop_last=False))
         [[6, 7, 8], [0, 1, 2], [3, 4, 5], [9]]
         >>> list(BucketBatchSampler(sampler, batch_size=3, drop_last=True))
@@ -71,11 +73,11 @@ class BucketBatchSampler(BatchSampler):
     """
 
     def __init__(self,
-                 sampler,
-                 batch_size,
-                 drop_last,
-                 dataset,
-                 bucket_size_multiplier=100):
+                 sampler: Sampler,
+                 batch_size: int,
+                 drop_last: bool,
+                 dataset: BioDataset,
+                 bucket_size_multiplier: typing.Union[int, float] = 100):
         super().__init__(sampler, batch_size, drop_last)
         self.dataset = dataset
         self.bucket_sampler = BatchSampler(

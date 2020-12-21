@@ -1,25 +1,30 @@
-import os
-import logging
-import copy
-import typing
-import json
+from __future__ import annotations
 
+import copy
+import json
+import logging
+import os
+import typing
+
+import pytorch_lightning as pl
 import torch
 import torch.optim as optim
-import pytorch_lightning as pl
-from ..utils.file_utils import cached_path
 from torch import nn
-from torch.nn.utils.weight_norm import weight_norm
-
 from torch.nn import LayerNorm
+
+from ..utils.file_utils import cached_path
 
 logger = logging.getLogger(__name__)
 
 CONFIG_NAME = "config.json"
 WEIGHTS_NAME = "pytorch_model.bin"
 
+PathType = typing.Union[str, bytes, os.PathLike],
 
-class GeCConfig(object):
+
+class BioConfig(object):
+    # From songlab-cal TAPE: https://github.com/songlab-cal/tape
+    # Modified substantially
     """ Base class for all configuration classes.
         Handles a few parameters common to all models' configurations as well as methods
         for loading/downloading/saving configurations.
@@ -47,12 +52,17 @@ class GeCConfig(object):
                  layer_norm_eps: float = 1e-12,
                  hidden_dropout_prob: float = 0.1,
                  initializer_range: float = 0.02,
+                 vocab_size: int = 30,
+                 type_vocab_size: int = 2,
                  gene_length_bin_size: int = 32,
                  gene_max_length: int = 16384,
                  optimizer: str = 'adamw',
                  learning_rate: float = 1e-4,
                  warmup_steps: int = 1000,
                  total_steps: int = 0,
+                 ignore_index: int = -1,
+                 tokenizer: str = 'iupac',
+                 gradient_checkpointing: bool = False,
                  **kwargs):
         self.input_rep_size = input_rep_size
         self.layer_norm_eps = layer_norm_eps
@@ -60,6 +70,13 @@ class GeCConfig(object):
         self.initializer_range = initializer_range
         self.gene_length_bin_size = gene_length_bin_size
         self.gene_max_length = gene_max_length
+        self.pruned_heads = None
+        self.gradient_checkpointing = gradient_checkpointing
+
+        self.vocab_size = vocab_size
+        self.type_vocab_size = type_vocab_size
+        self.ignore_index = ignore_index
+        self.tokenizer = tokenizer
 
         self.optimizer = optimizer
         self.learning_rate = learning_rate
@@ -72,9 +89,12 @@ class GeCConfig(object):
         self.output_hidden_states = kwargs.pop('output_hidden_states', False)
         self.torchscript = kwargs.pop('torchscript', False)
 
-    def save_pretrained(self, save_directory):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    def save_pretrained(self, save_directory: PathType) -> None:
         """ Save a configuration object to the directory `save_directory`, so that it
-            can be re-loaded using the :func:`~GeCConfig.from_pretrained`
+            can be re-loaded using the :func:`~BioConfig.from_pretrained`
             class method.
         """
         assert os.path.isdir(save_directory), "Saving path should be a directory where the " \
@@ -86,8 +106,10 @@ class GeCConfig(object):
         self.to_json_file(output_config_file)
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
-        r""" Instantiate a :class:`~GeCConfig`
+    def from_pretrained(cls, pretrained_model_name_or_path: PathType,
+                        cache_dir: typing.Optional[PathType],
+                        **kwargs) -> BioConfig:
+        r""" Instantiate a :class:`~BioConfig`
              (or a derived class) from a pre-trained model configuration.
 
         Parameters:
@@ -96,14 +118,10 @@ class GeCConfig(object):
                 - a string with the `shortcut name` of a pre-trained model configuration to
                   load from cache or download, e.g.: ``bert-base-uncased``.
                 - a path to a `directory` containing a configuration file saved using the
-                  :func:`~GeCConfig.save_pretrained` method,
+                  :func:`~BioConfig.save_pretrained` method,
                   e.g.: ``./my_model_directory/``.
                 - a path or url to a saved configuration JSON `file`,
                   e.g.: ``./my_model_directory/configuration.json``.
-
-            cache_dir: (`optional`) string:
-                Path to a directory in which a downloaded pre-trained model
-                configuration should be cached if the standard cache should not be used.
 
             kwargs: (`optional`) dict:
                 key/value pairs with which to update the configuration object after loading.
@@ -113,25 +131,17 @@ class GeCConfig(object):
                 - Behavior concerning key/value pairs whose keys are *not* configuration
                   attributes is controlled by the `return_unused_kwargs` keyword parameter.
 
-            return_unused_kwargs: (`optional`) bool:
-
-                - If False, then this function returns just the final configuration object.
-                - If True, then this functions returns a tuple `(config, unused_kwargs)`
-                  where `unused_kwargs` is a dictionary consisting of the key/value pairs
-                  whose keys are not configuration attributes: ie the part of kwargs which
-                  has not been used to update `config` and is otherwise ignored.
-
         Examples::
 
-            # We can't instantiate directly the base class `GeCConfig` so let's
-              show the examples on a derived class: ProteinBertConfig
+            # We can't instantiate directly the base class `BioConfig` so let's
+              show the examples on a derived class: BioBertConfig
             # Download configuration from S3 and cache.
-            config = ProteinBertConfig.from_pretrained('bert-base-uncased')
+            config = BioBertConfig.from_pretrained('bert-base-uncased')
             # E.g. config (or model) was saved using `save_pretrained('./test/saved_model/')`
-            config = ProteinBertConfig.from_pretrained('./test/saved_model/')
-            config = ProteinBertConfig.from_pretrained(
+            config = BioBertConfig.from_pretrained('./test/saved_model/')
+            config = BioBertConfig.from_pretrained(
                 './test/saved_model/my_configuration.json')
-            config = ProteinBertConfig.from_pretrained(
+            config = BioBertConfig.from_pretrained(
                 'bert-base-uncased', output_attention=True, foo=False)
             assert config.output_attention == True
             config, unused_kwargs = BertConfig.from_pretrained(
@@ -141,9 +151,6 @@ class GeCConfig(object):
             assert unused_kwargs == {'foo': False}
 
         """
-        cache_dir = kwargs.pop('cache_dir', None)
-        return_unused_kwargs = kwargs.pop('return_unused_kwargs', False)
-
         if pretrained_model_name_or_path in cls.pretrained_config_archive_map:
             config_file = cls.pretrained_config_archive_map[pretrained_model_name_or_path]
         elif os.path.isdir(pretrained_model_name_or_path):
@@ -165,7 +172,7 @@ class GeCConfig(object):
                         pretrained_model_name_or_path,
                         ', '.join(cls.pretrained_config_archive_map.keys()),
                         config_file))
-            return None
+            raise
         if resolved_config_file == config_file:
             logger.info("loading configuration file {}".format(config_file))
         else:
@@ -176,22 +183,15 @@ class GeCConfig(object):
         config = cls.from_json_file(resolved_config_file)
 
         # Update config with kwargs if needed
-        to_remove = []
         for key, value in kwargs.items():
             if hasattr(config, key):
                 setattr(config, key, value)
-                to_remove.append(key)
-        for key in to_remove:
-            kwargs.pop(key, None)
 
         logger.info("Model config %s", config)
-        if return_unused_kwargs:
-            return config, kwargs
-        else:
-            return config
+        return config
 
     @classmethod
-    def from_dict(cls, json_object):
+    def from_dict(cls, json_object: dict) -> BioConfig:
         """Constructs a `Config` from a Python dictionary of parameters."""
         config = cls(vocab_size_or_config_json_file=-1)
         for key, value in json_object.items():
@@ -199,7 +199,7 @@ class GeCConfig(object):
         return config
 
     @classmethod
-    def from_json_file(cls, json_file):
+    def from_json_file(cls, json_file: PathType) -> BioConfig:
         """Constructs a `BertConfig` from a json file of parameters."""
         with open(json_file, "r", encoding='utf-8') as reader:
             text = reader.read()
@@ -211,31 +211,33 @@ class GeCConfig(object):
     def __repr__(self):
         return str(self.to_json_string())
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         """Serializes this instance to a Python dictionary."""
         output = copy.deepcopy(self.__dict__)
         return output
 
-    def to_json_string(self):
+    def to_json_string(self) -> str:
         """Serializes this instance to a JSON string."""
         return json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
 
-    def to_json_file(self, json_file_path):
+    def to_json_file(self, json_file_path: PathType) -> None:
         """ Save this instance to a json file."""
         with open(json_file_path, "w", encoding='utf-8') as writer:
             writer.write(self.to_json_string())
 
 
-class GeCModel(pl.LightningModule):
+class BioModel(pl.LightningModule):
+    # From songlab-cal TAPE: https://github.com/songlab-cal/tape
+    # Modified substantially
     r""" Base class for all models.
 
-        :class:`~GeCModel` takes care of storing the configuration of
+        :class:`~BioModel` takes care of storing the configuration of
         the models and handles methods for loading/downloading/saving models as well as a
-        few methods commons to all models to (i) resize the input embeddings and (ii) prune
+        few methods commons to all models to (i) resize the sequence_rep embeddings and (ii) prune
         heads in the self-attention heads.
 
         Class attributes (overridden by derived classes):
-            - ``config_class``: a class derived from :class:`~GeCConfig`
+            - ``config_class``: a class derived from :class:`~BioConfig`
               to use as configuration class for this model architecture.
             - ``pretrained_model_archive_map``: a python ``dict`` of with `short-cut-names`
               (string) as keys and `url` (string) of associated pretrained weights as values.
@@ -244,23 +246,24 @@ class GeCModel(pl.LightningModule):
               base model in derived classes of the same architecture adding modules on top
               of the base model.
     """
-    config_class: typing.Type[GeCConfig] = GeCConfig
+    config_class: typing.Type[BioConfig] = BioConfig
     pretrained_model_archive_map: typing.Dict[str, str] = {}
     base_model_prefix = ""
 
     def __init__(self, config, *inputs, **kwargs):
         super().__init__()
-        if not isinstance(config, GeCConfig):
+        if not isinstance(config, BioConfig):
             raise ValueError(
                 "Parameter config in `{}(config)` should be an instance of class "
-                "`GeCConfig`. To create a model from a pretrained model use "
+                "`BioConfig`. To create a model from a pretrained model use "
                 "`model = {}.from_pretrained(PRETRAINED_MODEL_NAME)`".format(
                     self.__class__.__name__, self.__class__.__name__
                 ))
         # Save config in model
         self.config = config
+        self.save_hyperparameters()
 
-    def _tie_or_clone_weights(self, first_module, second_module):
+    def _tie_or_clone_weights(self, first_module: nn.Module, second_module: nn.Module) -> None:
         """ Tie or clone module weights depending of weither we are using TorchScript or not
         """
         if self.config.torchscript:
@@ -277,7 +280,7 @@ class GeCModel(pl.LightningModule):
         if getattr(self.config, 'pruned_heads', False):
             self.prune_heads(self.config.pruned_heads)
 
-    def prune_heads(self, heads_to_prune):
+    def prune_heads(self, heads_to_prune: typing.Dict):
         """ Prunes heads of the base model.
 
             Arguments:
@@ -289,9 +292,9 @@ class GeCModel(pl.LightningModule):
         base_model = getattr(self, self.base_model_prefix, self)  # get the base model if needed
         base_model._prune_heads(heads_to_prune)
 
-    def save_pretrained(self, save_directory):
+    def save_pretrained(self, save_directory: PathType):
         """ Save a model and its configuration file to a directory, so that it
-            can be re-loaded using the `:func:`~GeCModel.from_pretrained`
+            can be re-loaded using the `:func:`~BioModel.from_pretrained`
             ` class method.
         """
         assert os.path.isdir(save_directory), "Saving path should be a directory where " \
@@ -309,7 +312,14 @@ class GeCModel(pl.LightningModule):
         torch.save(model_to_save.state_dict(), output_model_file)
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+    def from_pretrained(cls,
+                        pretrained_model_name_or_path: PathType,
+                        *model_args,
+                        config: typing.Optional[BioConfig] = None,
+                        state_dict: typing.Optional[typing.Dict] = None,
+                        cache_dir: typing.Optional[PathType] = None,
+                        force_download: bool = False,
+                        **model_kwargs) -> BioModel:
         r"""Instantiate a pretrained pytorch model from a pre-trained model configuration.
 
         The model is set in evaluation mode by default using ``model.eval()``
@@ -329,7 +339,7 @@ class GeCModel(pl.LightningModule):
                 - a string with the `shortcut name` of a pre-trained model to load from cache
                   or download, e.g.: ``bert-base-uncased``.
                 - a path to a `directory` containing model weights saved using
-                  :func:`~GeCModel.save_pretrained`,
+                  :func:`~BioModel.save_pretrained`,
                   e.g.: ``./my_model_directory/``.
 
             model_args: (`optional`) Sequence of positional arguments:
@@ -337,14 +347,14 @@ class GeCModel(pl.LightningModule):
                 ``__init__`` method
 
             config: (`optional`) instance of a class derived from
-                :class:`~GeCConfig`: Configuration for the model to
+                :class:`~BioConfig`: Configuration for the model to
                 use instead of an automatically loaded configuation. Configuration can be
                 automatically loaded when:
 
                 - the model is a model provided by the library (loaded with the
                   ``shortcut-name`` string of a pretrained model), or
                 - the model was saved using
-                  :func:`~GeCModel.save_pretrained` and is reloaded
+                  :func:`~BioModel.save_pretrained` and is reloaded
                   by suppling the save directory.
                 - the model is loaded by suppling a local directory as
                   ``pretrained_model_name_or_path`` and a configuration JSON file named
@@ -355,8 +365,8 @@ class GeCModel(pl.LightningModule):
                 dictionary loaded from saved weights file. This option can be used if you
                 want to create a model from a pretrained configuration but load your own
                 weights. In this case though, you should check if using
-                :func:`~GeCModel.save_pretrained` and
-                :func:`~GeCModel.from_pretrained` is not a
+                :func:`~BioModel.save_pretrained` and
+                :func:`~BioModel.from_pretrained` is not a
                 simpler option.
 
             cache_dir: (`optional`) string:
@@ -367,13 +377,6 @@ class GeCModel(pl.LightningModule):
                 Force to (re-)download the model weights and configuration files and override
                 the cached versions if they exists.
 
-            resume_download: (`optional`) boolean, default False:
-                Do not delete incompletely recieved file. Attempt to resume the download if
-                such a file exists.
-
-            output_loading_info: (`optional`) boolean:
-                Set to ``True`` to also return a dictionnary containing missing keys,
-                unexpected keys and error messages.
 
             kwargs: (`optional`) Remaining dictionary of keyword arguments:
                 Can be used to update the configuration object (after it being loaded) and
@@ -385,7 +388,7 @@ class GeCModel(pl.LightningModule):
                   all relevant updates to the configuration have already been done)
                 - If a configuration is not provided, ``kwargs`` will be first passed to the
                   configuration class initialization function
-                  (:func:`~GeCConfig.from_pretrained`). Each key of
+                  (:func:`~BioConfig.from_pretrained`). Each key of
                   ``kwargs`` that corresponds to a configuration attribute will be used to
                   override said attribute with the supplied ``kwargs`` value. Remaining keys
                   that do not correspond to any configuration attribute will be passed to the
@@ -402,23 +405,12 @@ class GeCModel(pl.LightningModule):
             assert model.config.output_attention == True
 
         """
-        config = kwargs.pop('config', None)
-        state_dict = kwargs.pop('state_dict', None)
-        cache_dir = kwargs.pop('cache_dir', None)
-        output_loading_info = kwargs.pop('output_loading_info', False)
-
-        force_download = kwargs.pop("force_download", False)
-        kwargs.pop("resume_download", False)
-
         # Load config
         if config is None:
             config, model_kwargs = cls.config_class.from_pretrained(
-                pretrained_model_name_or_path, *model_args,
-                cache_dir=cache_dir, return_unused_kwargs=True,
-                **kwargs
+                pretrained_model_name_or_path,
+                cache_dir=cache_dir
             )
-        else:
-            model_kwargs = kwargs
 
         # Load model
         if pretrained_model_name_or_path in cls.pretrained_model_archive_map:
@@ -444,7 +436,7 @@ class GeCModel(pl.LightningModule):
                         pretrained_model_name_or_path,
                         ', '.join(cls.pretrained_model_archive_map.keys()),
                         archive_file))
-            return None
+            raise
         if resolved_archive_file == archive_file:
             logger.info("loading weights file {}".format(archive_file))
         else:
@@ -516,19 +508,12 @@ class GeCModel(pl.LightningModule):
         if hasattr(model, 'tie_weights'):
             model.tie_weights()  # make sure word embedding weights are still tied
 
-        # Set model in evaluation mode to desactivate DropOut modules by default
+        # Set model in evaluation mode to deactivate DropOut modules by default
         model.eval()
-
-        if output_loading_info:
-            loading_info = {
-                "missing_keys": missing_keys,
-                "unexpected_keys": unexpected_keys,
-                "error_msgs": error_msgs}
-            return model, loading_info
 
         return model
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> typing.Tuple[list, list]:
         learning_rate = self.config.learning_rate
         optimizer = self.config.optimizer
         param_optimizer = self.named_parameters()
@@ -551,8 +536,8 @@ class GeCModel(pl.LightningModule):
         if optimizer == 'adamw':
             optimizer = optim.AdamW(optimizer_grouped_parameters, lr=learning_rate)
         elif optimizer == 'lamb':
-            from torch_optimizer import LAMB
-            optimizer = LAMB(optimizer_grouped_parameters, lr=learning_rate)
+            from torch_optimizer import Lamb
+            optimizer = Lamb(optimizer_grouped_parameters, lr=learning_rate)
         elif optimizer == 'sgd':
             optimizer = optim.SGD(optimizer_grouped_parameters, lr=learning_rate)
         elif optimizer == 'novograd':
@@ -580,14 +565,83 @@ class GeCModel(pl.LightningModule):
                                                         pct_start=self.config.warmup_steps / self.config.total_steps,
                                                         anneal_strategy='linear')
 
-        return optimizer
+        return [optimizer], [{'scheduler': scheduler, 'interval': 'step', 'frequency': 1}]
+
+    def training_step(self, train_batch: typing.Dict, batch_idx: typing.Optional[int] = None) -> torch.Tensor:
+        results = self.forward(**train_batch)
+
+        loss, metrics = self._compare(results, train_batch)
+
+        for k, m in metrics.items():
+            self.log(f'train/{k}', m, sync_dist=True)
+
+        self.log('train/loss', loss, sync_dist=True)
+
+        return loss
+
+    def validation_step(self, batch: typing.Dict, batch_idx: typing.Optional[int] = None) -> torch.Tensor:
+        results = self.forward(**batch)
+
+        loss, metrics = self._compare(results, batch)
+
+        for k, m in metrics.items():
+            self.log(f'val/{k}', m)
+
+        self.log('val/loss', loss)
+
+        return loss
+
+
+class ProteinEmbeddings(nn.Module):
+    """Construct the embeddings from word, position and token_type embeddings.
+
+    Modified From songlab-cal TAPE: https://github.com/songlab-cal/tape
+    """
+
+    def __init__(self, config: BioConfig, position_embeddings: bool = True):
+        super().__init__()
+        self.word_embeddings = nn.Embedding(
+            config.vocab_size, config.hidden_size, padding_idx=0)
+        if position_embeddings:
+            self.position_embeddings = nn.Embedding(
+                config.max_position_embeddings, config.hidden_size)
+        self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
+
+        # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be
+        # able to load any TensorFlow checkpoint file
+        self.LayerNorm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+
+    def forward(self,
+                input_ids: torch.Tensor,
+                token_type_ids: typing.Optional[torch.Tensor] = None,
+                position_ids: typing.Optional[torch.Tensor] = None,
+                **kwargs) -> torch.Tensor:
+        seq_length = input_ids.size()[1]
+        if token_type_ids is None:
+            token_type_ids = torch.zeros_like(input_ids)
+
+        words_embeddings = self.word_embeddings(input_ids)
+        token_type_embeddings = self.token_type_embeddings(token_type_ids)
+        if hasattr(self, 'position_embeddings'):
+            if position_ids is None:
+                position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
+                position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
+            position_embeddings = self.position_embeddings(position_ids)
+            embeddings = words_embeddings + position_embeddings + token_type_embeddings
+        else:
+            embeddings = words_embeddings + token_type_embeddings
+
+        embeddings = self.LayerNorm(embeddings)
+        embeddings = self.dropout(embeddings)
+        return embeddings
 
 
 class GeCEmbeddings(nn.Module):
     """Construct the embeddings from gene, (strand and spacing embeddings).
     """
 
-    def __init__(self, config: GeCConfig, position_embeddings=True):
+    def __init__(self, config: BioConfig, position_embeddings: bool = True):
         super().__init__()
         self.generep_embeddings = nn.Linear(
             config.input_rep_size, config.hidden_size)
@@ -602,7 +656,11 @@ class GeCEmbeddings(nn.Module):
         self.LayerNorm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-    def forward(self, gene_reps, strands=None, lengths=None):
+    def forward(self,
+                gene_reps: torch.Tensor,
+                strands: typing.Optional[torch.Tensor] = None,
+                lengths: typing.Optional[torch.Tensor] = None,
+                **kwargs) -> torch.Tensor:
         if strands is None:
             strands = torch.zeros_like(gene_reps[:, :, 0], dtype=torch.long)
         else:
@@ -613,14 +671,14 @@ class GeCEmbeddings(nn.Module):
         else:
             lengths = strands.long()
 
-        words_embeddings = self.generep_embeddings(gene_reps)
+        generep_embeddings = self.generep_embeddings(gene_reps)
         direction_embeddings = self.direction_embeddings(strands + 1)
         length_embeddings = self.length_embeddings(torch.clamp(lengths, 1, self.length_embeddings.num_embeddings) //
                                                    self.gene_length_bin_size)
 
-        embeddings = words_embeddings + direction_embeddings + length_embeddings
+        embeddings = generep_embeddings + direction_embeddings + length_embeddings
         if hasattr(self, 'position_embeddings'):
-            position_ids = torch.arange(gene_reps.size(1), dtype=torch.long, device=gene_reps.device)
+            position_ids = torch.arange(gene_reps.size()[1], dtype=torch.long, device=gene_reps.device)
             position_ids = position_ids.unsqueeze(0).expand(gene_reps.shape[:-1])
             position_embeddings = self.position_embeddings(position_ids)
             embeddings = embeddings + position_embeddings
@@ -629,57 +687,3 @@ class GeCEmbeddings(nn.Module):
         return embeddings
 
 
-class GeCDataModule(pl.LightningDataModule):
-
-    def __init__(self,
-                 data_dir: str,
-                 batch_size: int,
-                 seqvec_type: str,
-                 max_seq_len: int,
-                 num_workers: int,
-                 **opt_kwargs):
-        super().__init__()
-        self.batch_size = batch_size
-        self.data_dir = data_dir
-        self.seqvec_type = seqvec_type
-        self.max_seq_len = max_seq_len
-        self.num_workers = num_workers
-        for kwarg, val in opt_kwargs.items():
-            self.__setattr__(kwarg, val)
-
-
-class SimpleMLP(nn.Module):
-
-    def __init__(self,
-                 in_dim: int,
-                 hid_dim: int,
-                 out_dim: int,
-                 dropout: float = 0.):
-        super().__init__()
-        self.main = nn.Sequential(
-            weight_norm(nn.Linear(in_dim, hid_dim), dim=None),
-            nn.ReLU(),
-            nn.Dropout(dropout, inplace=True),
-            weight_norm(nn.Linear(hid_dim, out_dim), dim=None))
-
-    def forward(self, x):
-        return self.main(x)
-
-
-def accuracy(logits, labels, ignore_index: int = -100):
-    with torch.no_grad():
-        valid_mask = (labels != ignore_index)
-        predictions = logits.float().argmax(-1)
-        correct = (predictions == labels) * valid_mask
-        return correct.sum().float() / valid_mask.sum().float()
-
-
-class SequenceClassificationHead(nn.Module):
-    def __init__(self, hidden_size: int, num_labels: int):
-        super().__init__()
-        self.classify = SimpleMLP(hidden_size, 512, num_labels)
-
-    def forward(self, pooled_output):
-        logits = self.classify(pooled_output)
-
-        return logits
