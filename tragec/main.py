@@ -42,7 +42,13 @@ def create_base_parser() -> argparse.ArgumentParser:
                         choices=['DEBUG', 'INFO', 'WARN', 'WARNING', 'ERROR',
                                  logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR],
                         help="log level for the experiment")
+    parser.add_argument('--fp16', action='store_true', help='Whether to use fp16 weights')
     parser.add_argument('--debug', action='store_true', help='Run in debug mode')
+    parser.add_argument('--max_seq_len', default=512, type=int,
+                        help="Maximum sequence length for sequence_rep data map (GeC models only)")
+    parser.add_argument('--exp_name', default=None, type=str,
+                        help='Name to give to this experiment')
+    parser.add_argument('--log_dir', default='./logs', type=str)
 
     return parser
 
@@ -62,20 +68,16 @@ def create_train_parser(base_parser: argparse.ArgumentParser) -> argparse.Argume
                         help='Number of training epochs')
     parser.add_argument('--num_log_iter', default=20, type=int,
                         help='Number of training steps per log iteration')
-    parser.add_argument('--fp16', action='store_true', help='Whether to use fp16 weights')
     parser.add_argument('--warmup_steps', default=10000, type=int,
                         help='Number of learning rate warmup steps')
     parser.add_argument('--gradient_accumulation_steps', default=1, type=int,
                         help='Number of forward passes to make for each gradient update')
     parser.add_argument('--max_grad_norm', default=1.0, type=float,
                         help='Maximum gradient norm')
-    parser.add_argument('--exp_name', default=None, type=str,
-                        help='Name to give to this experiment')
     parser.add_argument('--from_pretrained', default=None, type=str,
                         help='Directory containing config and pretrained model weights')
     parser.add_argument('--checkpoint_file', default=None, type=str,
                         help='File containing the lightning checkpoint')
-    parser.add_argument('--log_dir', default='./logs', type=str)
     parser.add_argument('--eval_freq', type=int, default=1.,
                         help="Frequency of eval pass per epoch. A value <= 0 means the eval pass is "
                              "not run")
@@ -89,8 +91,6 @@ def create_train_parser(base_parser: argparse.ArgumentParser) -> argparse.Argume
                         help="whether to resume training from the checkpoint")
     parser.add_argument('--optimizer', default='adamw', type=str,
                         help='Which optimizer to use (currently implemented: adamw, lamb, novograd, sgd)')
-    parser.add_argument('--max_seq_len', default=512, type=int,
-                        help="Maximum sequence length for sequence_rep data map")
     parser.add_argument('--percentmasked', default=.15, type=float,
                         help="What percent of data is masked. must be greater than 0 and less than 1")
     parser.add_argument('--train_frac', default=1., type=float,
@@ -115,11 +115,14 @@ def create_eval_parser(base_parser: argparse.ArgumentParser) -> argparse.Argumen
                         help=f'Metrics to run on the result. '
                              f'Choices: {list(registry.metric_name_mapping.keys())}',
                         nargs='*')
-    parser.add_argument('--split', default='test', type=str,
+    parser.add_argument('--split', default=None, type=str,
                         help='Which split to run on')
+    parser.add_argument('--val_frac', default=1., type=float,
+                        help="Fraction of the validation datamodule to use")
     return parser
 
 
+'''
 def create_embed_parser(base_parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description='Embed a set of proteins with a pretrained model',
@@ -164,7 +167,7 @@ def create_distributed_parser(base_parser: argparse.ArgumentParser) -> argparse.
                              "be used for communciation during distributed "
                              "training")
     return parser
-
+'''
 
 # noinspection DuplicatedCode
 def run_train(args: typing.Optional[argparse.Namespace] = None, env=None) -> None:
@@ -213,6 +216,7 @@ def run_eval(args: typing.Optional[argparse.Namespace] = None) -> typing.Dict[st
     return training.run_eval(**eval_args)
 
 
+'''
 # noinspection DuplicatedCode
 def run_embed(args: typing.Optional[argparse.Namespace] = None) -> None:
     if args is None:
@@ -259,6 +263,7 @@ def run_train_distributed(args: typing.Optional[argparse.Namespace] = None, env=
     train_args = {name: arg_dict[name] for name in arg_names}
     training.run_train(**train_args)
 
+'''
 
 if __name__ == '__main__':
     run_train()

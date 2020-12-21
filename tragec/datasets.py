@@ -338,10 +338,10 @@ class ProteinMaskedLanguageModelingDataset(BioDataset):
         if isinstance(tokenizer, str):
             tokenizer = TAPETokenizer(vocab=tokenizer)
         self.tokenizer = tokenizer
-
-        data_path = Path(data_path)
-        data_file = f'pfam/pfam_{split}.lmdb'
-        self.data = dataset_factory(data_path / data_file, decode_method=pickle.loads)
+        if data_path:
+            data_path = Path(data_path)
+            data_file = f'pfam/pfam_{split}.lmdb'
+            self.data = dataset_factory(data_path / data_file, decode_method=pickle.loads)
         self.percentmasked = percentmasked
 
     def __len__(self) -> int:

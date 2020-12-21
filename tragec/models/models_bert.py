@@ -6,19 +6,19 @@ from transformers import BertModel, BertConfig
 from .modeling import BioConfig, BioModel, GeCEmbeddings, ProteinEmbeddings, LayerNorm
 from ..tasks.registry import create_and_register_models
 
-URL_PREFIX = "https://storage.googleapis.com/fire-tod.tryps.in/pytorch-models/"
-BERT_PRETRAINED_MODEL_ARCHIVE_MAP = {}
-BERT_PRETRAINED_CONFIG_ARCHIVE_MAP = {}
+URL_PREFIX = "http://macpro.tryps.in:8080/models/tragec/"
+BERT_PRETRAINED_MODEL_ARCHIVE_MAP = {'prot-tiny_bert': URL_PREFIX + 'prot-tiny_bert-pytorch_model.bin'}
+BERT_PRETRAINED_CONFIG_ARCHIVE_MAP = {'prot-tiny_bert': URL_PREFIX + 'prot-tiny_bert-config.json'}
 
 
-class BioBertConfig(BertConfig, BioConfig):
+class BioBertConfig(BioConfig, BertConfig):
     pretrained_config_archive_map = BERT_PRETRAINED_CONFIG_ARCHIVE_MAP
 
     def __init__(self,
                  max_position_embeddings: int = 8192,
                  **kwargs):
         super().__init__(**kwargs)
-        BioConfig.__init__(self, **kwargs)
+        BertConfig.__init__(self, **kwargs)
         self.return_dict = True
         self.max_position_embeddings = max_position_embeddings
 

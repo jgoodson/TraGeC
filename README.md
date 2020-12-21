@@ -38,9 +38,11 @@ In general, models may be either pre-trained or fine-tuned (depending on the par
 
 Once a model has been trained, `tragec-eval` is available to run the model in evaluation mode on a testing dataset and evaluate its behavior. The metrics and output are specified in the task code itself and may not be changed at run-time. To perform custom testing, you should use `tragec-infer` to generate model output and process it externally.
 
-### tragec-infer
+### tragec-infer - not currently implemented
 
 The final command, `tragec-infer`, allows for output of the task models themselves to obtain embeddings, predictions, classifications, or whatever type of output the specified task model provides.
+
+*This is not currently implemented. I'm still thinking about how to generalize this for all the models while also leveraging Lightning. To get raw output, you'll need to write your own script to load your trained model, dataloader, and feed it data.
 
 ## Development
 

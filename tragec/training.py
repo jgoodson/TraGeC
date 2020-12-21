@@ -3,6 +3,7 @@ import os
 import pickle as pkl
 import typing
 from pathlib import Path
+import json
 
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
@@ -16,6 +17,11 @@ logger = logging.getLogger(__name__)
 MetricsDict = typing.Dict[str, float]
 LossAndMetrics = typing.Tuple[float, MetricsDict]
 OutputDict = typing.Dict[str, typing.Any]
+
+
+def generate_save_dir(exp_name: str, task: str, model_type: str, output_dir: str):
+    exp_dir = utils.get_expname(exp_name, task, model_type)
+    return Path(output_dir) / exp_dir
 
 
 def run_train(model_type: str,
@@ -50,16 +56,13 @@ def run_train(model_type: str,
               val_frac: float = 1.,
               seqvec_type: str = 'seqvec',
               ) -> None:
-    # SETUP AND LOGGING CODE #
-    # input_args = locals()
+    input_args = locals()
 
-    exp_dir = utils.get_expname(exp_name, task, model_type)
-    save_path = Path(output_dir) / exp_dir
+    save_path = generate_save_dir(exp_name, task, model_type, output_dir)
 
-    # save all the hidden parameters.
     save_path.mkdir(parents=True, exist_ok=True)
-    # with (save_path / 'args.json').open('w') as f:
-    #    json.dump(input_args, f)
+    with (save_path / 'args.json').open('w') as f:
+        json.dump(input_args, f)
 
     optional_dataset_args = {
         'percentmasked': percentmasked,
@@ -140,11 +143,9 @@ def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, 
 def run_eval(model_type: str,
              task: str,
              batch_size: int = 1024,
-             num_log_iter: int = 20,
              fp16: bool = False,
              exp_name: typing.Optional[str] = None,
              from_pretrained: typing.Optional[str] = None,
-             checkpoint_file: typing.Optional[str] = None,
              log_dir: str = './logs',
              model_config_file: typing.Optional[str] = None,
              data_dir: str = './data',
@@ -158,16 +159,12 @@ def run_eval(model_type: str,
              val_frac: float = 1.,
              seqvec_type: str = 'seqvec',
              metrics: typing.Union[list, tuple] = (),
-             split: str = 'test',
+             split: typing.Optional[str] = None,
              ) -> typing.Dict[str, float]:
-    exp_dir = utils.get_expname(exp_name, task, model_type)
-    save_path = Path(output_dir) / exp_dir
-
-    # save all the hidden parameters.
-    save_path.mkdir(parents=True, exist_ok=True)
+    save_path = generate_save_dir(exp_name, task, model_type, output_dir)
 
     pl.seed_everything(seed)
-    model = registry.get_task_model(model_type, task, checkpoint_file, model_config_file, from_pretrained)
+    model = registry.get_task_model(model_type, task, None, model_config_file, from_pretrained)
 
     datamodule = registry.get_task_datamodule(task, data_dir, batch_size, max_seq_len, num_workers, seqvec_type,
                                               model.config.tokenizer)
@@ -175,9 +172,8 @@ def run_eval(model_type: str,
     datamodule.distributed = n_gpus > 1 or use_tpu
 
     evaluator_args = {
-        'log_every_n_steps': num_log_iter,
         'default_root_dir': save_path,
-        'limit_val_batches': val_frac,
+        'limit_test_batches': val_frac,
     }
     if fp16:
         evaluator_args['precision'] = 16
@@ -192,68 +188,73 @@ def run_eval(model_type: str,
 
     trainer = pl.Trainer(**evaluator_args)
 
-    results = trainer.test(model, test_dataloaders=datamodule.get_dataloader(split=split))
+    if split:
+        datamodule.setup()
+        results = trainer.test(model, test_dataloaders=datamodule.get_dataloader(split=split))
+    else:
+        results = trainer.test(model, datamodule=datamodule)
 
-    with (save_path / 'results.pkl').open('wb') as f:
-        pkl.dump(results, f)
+    with (save_path / 'results.json').open('wb') as f:
+        json.dump(results, f)
 
     return results
 
 
-'''
-def run_embed(model_type: str,
-              data_file: str,
-              out_file: str,
-              from_pretrained: str,
-              batch_size: int = 1024,
-              model_config_file: typing.Optional[str] = None,
-              full_sequence_embed: bool = False,
-              no_cuda: bool = False,
-              seed: int = 42,
-              tokenizer: str = 'iupac',
-              num_workers: int = 8,
-              log_level: typing.Union[str, int] = logging.INFO) -> None:
-    local_rank = -1  # TAPE does not support torch.distributed.launch for embedding
-    device, n_gpu, is_master = utils.setup_distributed(local_rank, no_cuda)
-    utils.setup_logging(local_rank, save_path=None, log_level=log_level)
-    utils.set_random_seeds(seed, n_gpu)
+def run_eval(model_type: str,
+             task: str,
+             batch_size: int = 1024,
+             fp16: bool = False,
+             exp_name: typing.Optional[str] = None,
+             from_pretrained: typing.Optional[str] = None,
+             log_dir: str = './logs',
+             model_config_file: typing.Optional[str] = None,
+             data_dir: str = './data',
+             output_dir: str = './results',
+             use_tpu: bool = True,
+             no_cuda: bool = False,
+             n_gpus: int = 1,
+             seed: int = 42,
+             num_workers: int = 8,
+             max_seq_len: int = 512,
+             val_frac: float = 1.,
+             seqvec_type: str = 'seqvec',
+             metrics: typing.Union[list, tuple] = (),
+             split: typing.Optional[str] = None,
+             ) -> typing.Dict[str, float]:
+    save_path = generate_save_dir(exp_name, task, model_type, output_dir)
 
-    logger.info(
-        f"device: {device} "
-        f"n_gpu: {n_gpu}")
+    pl.seed_everything(seed)
+    model = registry.get_task_model(model_type, task, None, model_config_file, from_pretrained)
 
-    task_spec = registry.get_task_spec('embed')
-    model = registry.get_task_model(
-        model_type, task_spec.name, model_config_file, from_pretrained)
-    model = model.to(device)
-    runner = ForwardRunner(model, device, n_gpu)
-    runner.initialize_distributed_model()
-    runner.eval()
-    torch.set_grad_enabled(False)
+    datamodule = registry.get_task_datamodule(task, data_dir, batch_size, max_seq_len, num_workers, seqvec_type,
+                                              model.config.tokenizer)
 
-    datamodule = task_spec.datamodule(data_file, tokenizer=tokenizer)  # type: ignore
-    valid_loader = utils.setup_loader(datamodule, batch_size, local_rank, n_gpu, 1, num_workers)
+    datamodule.distributed = n_gpus > 1 or use_tpu
 
-    with utils.IncrementalNPZ(out_file) as npzfile:
-        with utils.wrap_cuda_oom_error(local_rank, batch_size, n_gpu):
-            for batch in tqdm(valid_loader, total=len(valid_loader)):
-                outputs = runner.forward(batch, no_loss=True)
-                ids = batch['ids']
-                sequence_embed = outputs[0]
-                pooled_embed = outputs[1]
-                sequence_lengths = batch['input_mask'].sum(1)
-                sequence_embed = sequence_embed.cpu().numpy()
-                pooled_embed = pooled_embed.cpu().numpy()
-                sequence_lengths = sequence_lengths.cpu().numpy()
+    evaluator_args = {
+        'default_root_dir': save_path,
+        'limit_test_batches': val_frac,
+    }
+    if fp16:
+        evaluator_args['precision'] = 16
+    evaluator_args['logger'] = pl_loggers.TensorBoardLogger(log_dir, name=exp_name)
 
-                for seqembed, poolembed, length, protein_id in zip(
-                        sequence_embed, pooled_embed, sequence_lengths, ids):
-                    seqembed = seqembed[:length]
-                    arrays = {'pooled': poolembed}
-                    if not full_sequence_embed:
-                        # avgpool across the sequence
-                        arrays['avg'] = seqembed.mean(0)
-                    else:
-                        arrays['seq'] = seqembed
-                    to_save = {protein_id: arrays}
-                    npzfile.savez(**to_save)'''
+    if not no_cuda and n_gpus > 1:
+        evaluator_args['gpus'] = n_gpus
+        evaluator_args['accelerator'] = 'ddp'
+        evaluator_args['replace_sampler_ddp'] = False
+    elif not no_cuda:
+        evaluator_args['gpus'] = 1
+
+    trainer = pl.Trainer(**evaluator_args)
+
+    if split:
+        datamodule.setup()
+        results = trainer.test(model, test_dataloaders=datamodule.get_dataloader(split=split))
+    else:
+        results = trainer.test(model, datamodule=datamodule)
+
+    with (save_path / 'results.json').open('wb') as f:
+        json.dump(results, f)
+
+    return results

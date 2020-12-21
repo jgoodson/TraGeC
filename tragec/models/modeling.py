@@ -12,7 +12,7 @@ import torch.optim as optim
 from torch import nn
 from torch.nn import LayerNorm
 
-from ..utils.file_utils import cached_path
+from transformers.file_utils import cached_path
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,7 @@ class BioConfig(object):
                  layer_norm_eps: float = 1e-12,
                  hidden_dropout_prob: float = 0.1,
                  initializer_range: float = 0.02,
+                 max_position_embeddings: int = 8192,
                  vocab_size: int = 30,
                  type_vocab_size: int = 2,
                  gene_length_bin_size: int = 32,
@@ -72,6 +73,7 @@ class BioConfig(object):
         self.gene_max_length = gene_max_length
         self.pruned_heads = None
         self.gradient_checkpointing = gradient_checkpointing
+        self.max_position_embeddings = max_position_embeddings
 
         self.vocab_size = vocab_size
         self.type_vocab_size = type_vocab_size
@@ -314,7 +316,6 @@ class BioModel(pl.LightningModule):
     @classmethod
     def from_pretrained(cls,
                         pretrained_model_name_or_path: PathType,
-                        *model_args,
                         config: typing.Optional[BioConfig] = None,
                         state_dict: typing.Optional[typing.Dict] = None,
                         cache_dir: typing.Optional[PathType] = None,
@@ -341,10 +342,6 @@ class BioModel(pl.LightningModule):
                 - a path to a `directory` containing model weights saved using
                   :func:`~BioModel.save_pretrained`,
                   e.g.: ``./my_model_directory/``.
-
-            model_args: (`optional`) Sequence of positional arguments:
-                All remaning positional arguments will be passed to the underlying model's
-                ``__init__`` method
 
             config: (`optional`) instance of a class derived from
                 :class:`~BioConfig`: Configuration for the model to
@@ -407,7 +404,7 @@ class BioModel(pl.LightningModule):
         """
         # Load config
         if config is None:
-            config, model_kwargs = cls.config_class.from_pretrained(
+            config = cls.config_class.from_pretrained(
                 pretrained_model_name_or_path,
                 cache_dir=cache_dir
             )
@@ -419,6 +416,7 @@ class BioModel(pl.LightningModule):
             archive_file = os.path.join(pretrained_model_name_or_path, WEIGHTS_NAME)
         else:
             archive_file = pretrained_model_name_or_path
+
         # redirect to the cache, if necessary
         try:
             resolved_archive_file = cached_path(archive_file, cache_dir=cache_dir,
@@ -444,7 +442,7 @@ class BioModel(pl.LightningModule):
                 archive_file, resolved_archive_file))
 
         # Instantiate model.
-        model = cls(config, *model_args, **model_kwargs)
+        model = cls(config)
 
         if state_dict is None:
             state_dict = torch.load(resolved_archive_file, map_location='cpu')
@@ -589,7 +587,17 @@ class BioModel(pl.LightningModule):
 
         self.log('val/loss', loss)
 
-        return loss
+        return metrics
+
+    def test_step(self, batch: typing.Dict, batch_idx: typing.Optional[int] = None):
+        results = self.forward(**batch)
+
+        loss, metrics = self._compare(results, batch)
+
+        for k, m in metrics.items():
+            self.log(f'test/{k}', m)
+
+        self.log('test/loss', loss)
 
 
 class ProteinEmbeddings(nn.Module):

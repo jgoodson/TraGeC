@@ -40,9 +40,9 @@ setup(
     entry_points={
         'console_scripts': [
             'tragec-train = tragec.main:run_train',
-            'tragec-train-distributed = tragec.main:run_train_distributed',
+            # 'tragec-train-distributed = tragec.main:run_train_distributed',
             'tragec-eval = tragec.main:run_eval',
-            'tragec-embed = tragec.main:run_embed',
+            #'tragec-embed = tragec.main:run_embed',
         ]
     },
     classifiers=[

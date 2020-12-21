@@ -8,12 +8,12 @@ from .modeling import BioConfig, BioModel, GeCEmbeddings, ProteinEmbeddings
 from ..tasks.registry import create_and_register_models
 from .utils_t5 import T5Stack
 
-URL_PREFIX = "https://storage.googleapis.com/fire-tod.tryps.in/pytorch-models/"
+URL_PREFIX = "http://macpro.tryps.in:8080/models/tragec/"
 T5_PRETRAINED_MODEL_ARCHIVE_MAP = {}
 T5_PRETRAINED_CONFIG_ARCHIVE_MAP = {}
 
 
-class BioT5Config(T5Config, BioConfig):
+class BioT5Config(BioConfig, T5Config):
     pretrained_config_archive_map = T5_PRETRAINED_CONFIG_ARCHIVE_MAP
 
     def __init__(self,
@@ -23,9 +23,9 @@ class BioT5Config(T5Config, BioConfig):
                  max_position_embeddings: int = 8096,
                  **kwargs):
         super().__init__(**kwargs)
-        BioConfig.__init__(self, **kwargs, skip_args=('hidden_size',))
+        T5Config.__init__(self, **kwargs)
 
-        # Adapt comparable argument names from T5Config for consistency
+        # Adapt comparable argument names from T5Config for consistency with BioBertConfig
         self.d_model = hidden_size
         self.num_layers = num_hidden_layers
         self.num_heads = num_attention_heads
