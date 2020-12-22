@@ -92,7 +92,8 @@ def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, 
                     warmup_steps, fast_dev_run):
     pl.seed_everything(seed)
     model = registry.get_task_model(model_type, task, checkpoint_file, model_config_file, from_pretrained)
-    datamodule = registry.get_task_datamodule(task, data_dir, batch_size, max_seq_len, num_workers, seqvec_type,
+    datamodule = registry.get_task_datamodule(task, data_dir, batch_size // gradient_accumulation_steps, max_seq_len,
+                                              num_workers, seqvec_type,
                                               model.config.tokenizer, **optional_dataset_args)
     model.config.optimizer = optimizer
     model.config.learning_rate = learning_rate
@@ -100,7 +101,8 @@ def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, 
     datamodule.setup()
     model.config.total_steps = int(len(datamodule.train_dataloader()) * num_train_epochs * train_frac)
     del datamodule
-    datamodule = registry.get_task_datamodule(task, data_dir, batch_size, max_seq_len, num_workers, seqvec_type,
+    datamodule = registry.get_task_datamodule(task, data_dir, batch_size // gradient_accumulation_steps, max_seq_len,
+                                              num_workers, seqvec_type,
                                               model.config.tokenizer, **optional_dataset_args)
     datamodule.distributed = n_gpus > 1 or use_tpu
     trainer_kwargs = {
@@ -119,6 +121,7 @@ def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, 
         trainer_kwargs['callbacks'] = [es_callback]
     if fp16:
         trainer_kwargs['precision'] = 16
+        logger.warning('Currently FP16 is not playing well with native FP16/Lightning/Transformers')
     if checkpoint_file:
         trainer_kwargs['resume_from_checkpoint'] = checkpoint_file
     trainer_kwargs['logger'] = pl_loggers.TensorBoardLogger(log_dir, name=exp_name)
