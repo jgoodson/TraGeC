@@ -49,6 +49,8 @@ def create_base_parser() -> argparse.ArgumentParser:
     parser.add_argument('--exp_name', default=None, type=str,
                         help='Name to give to this experiment')
     parser.add_argument('--log_dir', default='./logs', type=str)
+    parser.add_argument('--fast_dev_run', action='store_true',
+                        help='Enable single-sample testing to test a run config')
 
     return parser
 
