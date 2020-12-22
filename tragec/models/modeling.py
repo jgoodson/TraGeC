@@ -11,6 +11,7 @@ import torch
 import torch.optim as optim
 from torch import nn
 from torch.nn import LayerNorm
+import numpy as np
 
 from transformers.file_utils import cached_path
 
@@ -64,8 +65,11 @@ class BioConfig(object):
                  ignore_index: int = -1,
                  tokenizer: str = 'iupac',
                  gradient_checkpointing: bool = False,
+                 sinusoidal_pos_embds: bool = False,
+                 hidden_size: int = 768,
                  **kwargs):
         self.input_rep_size = input_rep_size
+        self.hidden_size = hidden_size
         self.layer_norm_eps = layer_norm_eps
         self.hidden_dropout_prob = hidden_dropout_prob
         self.initializer_range = initializer_range
@@ -74,6 +78,8 @@ class BioConfig(object):
         self.pruned_heads = None
         self.gradient_checkpointing = gradient_checkpointing
         self.max_position_embeddings = max_position_embeddings
+        self.sinusoidal_pos_embds = sinusoidal_pos_embds
+        self.output_size = hidden_size
 
         self.vocab_size = vocab_size
         self.type_vocab_size = type_vocab_size
@@ -600,6 +606,14 @@ class BioModel(pl.LightningModule):
         self.log('test/loss', loss)
 
 
+def create_sinusoidal_embeddings(n_pos, dim, out):
+    position_enc = np.array([[pos / np.power(10000, 2 * (j // 2) / dim) for j in range(dim)] for pos in range(n_pos)])
+    out[:, 0::2] = torch.tensor(np.sin(position_enc[:, 0::2]), device=out.device)
+    out[:, 1::2] = torch.tensor(np.cos(position_enc[:, 1::2]), device=out.device)
+    out.detach_()
+    out.requires_grad = False
+
+
 class ProteinEmbeddings(nn.Module):
     """Construct the embeddings from word, position and token_type embeddings.
 
@@ -613,6 +627,10 @@ class ProteinEmbeddings(nn.Module):
         if position_embeddings:
             self.position_embeddings = nn.Embedding(
                 config.max_position_embeddings, config.hidden_size)
+            if config.sinusoidal_pos_embds:
+                create_sinusoidal_embeddings(
+                    n_pos=config.max_position_embeddings, dim=config.hidden_size, out=self.position_embeddings.weight
+                )
         self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
 
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be
@@ -655,6 +673,10 @@ class GeCEmbeddings(nn.Module):
             config.input_rep_size, config.hidden_size)
         if position_embeddings:
             self.position_embeddings: nn.Embedding = nn.Embedding(config.gene_max_length, config.hidden_size)
+            if config.sinusoidal_pos_embds:
+                create_sinusoidal_embeddings(
+                    n_pos=config.max_position_embeddings, dim=config.hidden_size, out=self.position_embeddings.weight
+                )
         self.direction_embeddings: nn.Embedding = nn.Embedding(3, config.hidden_size)
         self.length_embeddings: nn.Embedding = nn.Embedding(config.gene_max_length // config.gene_length_bin_size + 1,
                                                             config.hidden_size)

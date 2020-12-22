@@ -1,33 +1,37 @@
 """PyTorch BERT model. """
 
+import torch
 from torch import nn
-from transformers import BertModel, BertConfig
+from transformers import LongformerModel, LongformerConfig
 
 from .modeling import BioConfig, BioModel, GeCEmbeddings, ProteinEmbeddings, LayerNorm
 from ..tasks.registry import create_and_register_models
 
 URL_PREFIX = "http://macpro.tryps.in:8080/models/tragec/"
-BERT_PRETRAINED_MODEL_ARCHIVE_MAP = {'prot-tiny_bert': URL_PREFIX + 'prot-tiny_bert-pytorch_model.bin'}
-BERT_PRETRAINED_CONFIG_ARCHIVE_MAP = {'prot-tiny_bert': URL_PREFIX + 'prot-tiny_bert-config.json'}
+LONGFORMER_PRETRAINED_MODEL_ARCHIVE_MAP = {}
+LONGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP = {}
 
 
-class BioBertConfig(BioConfig, BertConfig):
-    pretrained_config_archive_map = BERT_PRETRAINED_CONFIG_ARCHIVE_MAP
+class BioLongformerConfig(BioConfig, LongformerConfig):
+    pretrained_config_archive_map = LONGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP
 
     def __init__(self,
+                 attention_window: int = 64,
                  **kwargs):
         super().__init__(**kwargs)
-        BertConfig.__init__(self, **kwargs)
+        LongformerConfig.__init__(self,
+                                  attention_window=attention_window,
+                                  **kwargs)
         self.return_dict = True
 
 
-class BioBertAbstractModel(BioModel):
+class BioLongformerAbstractModel(BioModel):
     """ An abstract class to handle weights initialization and
         a simple interface for dowloading and loading pretrained models.
     """
-    base_model_prefix = "bert"
-    config_class = BioBertConfig
-    pretrained_model_archive_map = BERT_PRETRAINED_MODEL_ARCHIVE_MAP
+    base_model_prefix = "longformer"
+    config_class = BioLongformerConfig
+    pretrained_model_archive_map = LONGFORMER_PRETRAINED_MODEL_ARCHIVE_MAP
 
     def _init_weights(self, module):
         """ Initialize the weights """
@@ -40,12 +44,12 @@ class BioBertAbstractModel(BioModel):
             module.bias.data.zero_()
 
 
-class BioBertModel(BioBertAbstractModel):
+class BioLongformerModel(BioLongformerAbstractModel):
 
     def __init__(self, config):
         super().__init__(config)
 
-        self.model = BertModel(config)
+        self.model = LongformerModel(config)
 
         self.init_weights()
 
@@ -53,23 +57,27 @@ class BioBertModel(BioBertAbstractModel):
                 sequence_rep,
                 input_mask=None,
                 **kwargs):
+        global_attention_mask = torch.zeros(sequence_rep.shape[:2], device=sequence_rep.device)
+        global_attention_mask[:, 0] = 1
         output = self.model(inputs_embeds=self.embedding(sequence_rep, **kwargs),
-                            attention_mask=input_mask)
+                            attention_mask=input_mask,
+                            global_attention_mask=global_attention_mask)
         return output['last_hidden_state'], output['pooler_output']
 
 
-class GeCBertModel(BioBertModel):
+class GeCLongformerModel(BioLongformerModel):
     def __init__(self, config):
         super().__init__(config)
 
         self.embedding = GeCEmbeddings(config)
 
 
-class ProteinBertModel(BioBertModel):
+class ProteinLongformerModel(BioLongformerModel):
     def __init__(self, config):
         super().__init__(config)
 
         self.embedding = ProteinEmbeddings(config)
 
 
-create_and_register_models(locals(), BioBertAbstractModel, GeCBertModel, ProteinBertModel, 'bert')
+create_and_register_models(locals(), BioLongformerAbstractModel, GeCLongformerModel, ProteinLongformerModel,
+                           'longformer')

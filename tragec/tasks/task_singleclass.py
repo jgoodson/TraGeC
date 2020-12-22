@@ -13,7 +13,7 @@ class BioSequenceClassification(BioModel):
         super().__init__(config)
 
         self.classify = SequenceClassificationHead(
-            config.hidden_size, config.num_labels)
+            config.output_size, config.num_labels)
 
         self.init_weights()
 
@@ -85,9 +85,9 @@ class ProteinRemoteHomologyModule(BioDataModule):
 
 class SequenceClassificationHead(nn.Module):
     # From songlab-cal TAPE: https://github.com/songlab-cal/tape
-    def __init__(self, hidden_size: int, num_labels: int):
+    def __init__(self, input_size: int, num_labels: int):
         super().__init__()
-        self.classify = SimpleMLP(hidden_size, 512, num_labels)
+        self.classify = SimpleMLP(input_size, 512, num_labels)
 
     def forward(self, pooled_output: torch.Tensor) -> torch.Tensor:
         logits = self.classify(pooled_output)

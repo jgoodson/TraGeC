@@ -14,7 +14,7 @@ class BioSequenceMultiClassification(BioModel):
         super().__init__(config)
 
         self.classify = MultiLabelClassificationHead(
-            config.hidden_size, config.num_labels)
+            config.output_size, config.num_labels)
         self.pos_weights = config.pos_weights
         self.init_weights()
 
@@ -89,9 +89,9 @@ class ProteinDomainPredictionModule(BioDataModule):
 
 
 class MultiLabelClassificationHead(nn.Module):
-    def __init__(self, hidden_size: int, num_labels: int):
+    def __init__(self, input_size: int, num_labels: int):
         super().__init__()
-        self.classify = SimpleConv(hidden_size, 512, num_labels)
+        self.classify = SimpleConv(input_size, 512, num_labels)
 
     def forward(self, sequence_output):
         logits = self.classify(sequence_output).max(1)[0]

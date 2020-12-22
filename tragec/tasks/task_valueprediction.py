@@ -8,9 +8,9 @@ from tragec.datasets import ProteinFluorescenceDataset, ProteinStabilityDataset
 
 class ValuePredictionHead(torch.nn.Module):
     # From songlab-cal TAPE: https://github.com/songlab-cal/tape
-    def __init__(self, hidden_size: int, dropout: float = 0.):
+    def __init__(self, input_size: int, dropout: float = 0.):
         super().__init__()
-        self.value_prediction = SimpleMLP(hidden_size, 512, 1, dropout)
+        self.value_prediction = SimpleMLP(input_size, 512, 1, dropout)
 
     def forward(self, pooled_output, targets=None):
         value_pred = self.value_prediction(pooled_output)
@@ -29,7 +29,7 @@ class BioSequenceValuePrediction(BioModel):
         super().__init__(config)
 
         self.value_prediction = ValuePredictionHead(
-            config.hidden_size, config.num_labels)
+            config.output_size, config.num_labels)
 
         self.init_weights()
 

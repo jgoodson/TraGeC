@@ -16,7 +16,7 @@ class BioSequenceToSequenceClassification(BioModel):
         self.num_labels = config.num_labels
 
         self.classify = SequenceToSequenceClassificationHead(
-            config.hidden_size, config.num_labels, ignore_index=self._ignore_index)
+            config.output_size, config.num_labels, ignore_index=self._ignore_index)
 
         self.init_weights()
 
@@ -94,12 +94,12 @@ class Accuracy(nn.Module):
 class SequenceToSequenceClassificationHead(nn.Module):
     # From songlab-cal TAPE: https://github.com/songlab-cal/tape
     def __init__(self,
-                 hidden_size: int,
+                 input_size: int,
                  num_labels: int,
                  ignore_index: int = -100):
         super().__init__()
         self.classify = SimpleConv(
-            hidden_size, 512, num_labels)
+            input_size, 512, num_labels)
         self.num_labels = num_labels
         self._ignore_index = ignore_index
 

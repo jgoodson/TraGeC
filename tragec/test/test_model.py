@@ -8,6 +8,7 @@ from tragec.datasets import GeCMaskedReconstructionDataset, ProteinMaskedLanguag
 from tragec.models.models_bert import GeCBertModel, ProteinBertModel, BioBertConfig, GeCBertForMaskedRecon, \
     ProteinBertForMLM
 from tragec.models.models_t5 import BioT5Config, GeCT5Model, GeCT5ForMaskedRecon
+from tragec.models.models_longformer import ProteinLongformerModel, BioLongformerConfig, ProteinLongformerForMLM
 
 test_config_kwargs = dict(
     hidden_size=128,
@@ -65,7 +66,10 @@ class TestGeCBertRecon(unittest.TestCase):
 
     def test_forward(self) -> None:
         target = torch.ones(self.size)
-        seq_output = self.model(torch.zeros(self.size), targets=target)[0]
+        try:
+            seq_output = self.model(torch.zeros(self.size), targets=target)[0]
+        except:
+            print(self.config)
         self.assertEqual(seq_output.shape, self.size)
 
     def test_backward(self) -> None:
@@ -197,6 +201,83 @@ class TestProtBertMLM(unittest.TestCase):
     def setUp(self) -> None:
         self.config = BioBertConfig(gradient_checkpointing=True, vocab_size=30, **test_config_kwargs)
         self.model = ProteinBertForMLM(self.config)
+        self.size = (2, 100)
+
+    def test_forward(self) -> None:
+        input_tokens = target = torch.from_numpy(np.random.randint(0, 30, self.size)).long()
+        seq_output = self.model(input_tokens, targets=target)[0]
+        self.assertEqual(seq_output.shape, self.size + (self.config.vocab_size,))
+
+    def test_backward(self) -> None:
+        data = random.choices(self.tokens, k=self.size[1])
+        ds = ProteinMaskedLanguageModelingDataset(None, 'train')
+        masked_tokens, labels = ds._apply_bert_mask(data)
+        masked_token_ids = np.array(
+            ds.tokenizer.convert_tokens_to_ids(masked_tokens), np.int64)
+        input_mask = np.ones_like(masked_token_ids)
+
+        masked_token_ids = np.array(
+            ds.tokenizer.convert_tokens_to_ids(masked_tokens), np.int64)
+        batch = ds.collate_fn(
+            [(masked_token_ids, input_mask, labels, None, None), ] * self.size[0]
+        )
+        loss = self.model.training_step(batch, None)
+        loss.backward()
+
+
+class TestProtLongformerRaw(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.config = BioLongformerConfig(gradient_checkpointing=True, **test_config_kwargs)
+        self.model = ProteinLongformerModel(self.config)
+
+    def simpleForwardRandom(self, shape):
+        (seq_output, pooled_output) = self.model(torch.from_numpy(np.random.randint(0, 30, shape)).long())
+        self.assertEqual(seq_output.shape, shape + (self.config.hidden_size,))
+        self.assertEqual(pooled_output.shape, (shape[0], self.config.hidden_size))
+
+    def test_forward(self) -> None:
+        self.simpleForwardRandom((1, 100))
+
+    def test_forward_batch(self) -> None:
+        self.simpleForwardRandom((4, 100))
+
+
+class TestProtLongformerMLM(unittest.TestCase):
+    tokens = ("<pad>",
+              "<mask>",
+              "<cls>",
+              "<sep>",
+              "<unk>",
+              "A",
+              "B",
+              "C",
+              "D",
+              "E",
+              "F",
+              "G",
+              "H",
+              "I",
+              "K",
+              "L",
+              "M",
+              "N",
+              "O",
+              "P",
+              "Q",
+              "R",
+              "S",
+              "T",
+              "U",
+              "V",
+              "W",
+              "X",
+              "Y",
+              "Z",)
+
+    def setUp(self) -> None:
+        self.config = BioLongformerConfig(gradient_checkpointing=True, vocab_size=30, **test_config_kwargs)
+        self.model = ProteinLongformerForMLM(self.config)
         self.size = (2, 100)
 
     def test_forward(self) -> None:

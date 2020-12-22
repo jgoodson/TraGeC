@@ -1,37 +1,40 @@
 """PyTorch T5 model. """
 
+import typing
+
 from torch import nn
 from torch.nn import LayerNorm
-from transformers import T5Config
+from transformers import FunnelConfig, FunnelModel
 
 from .modeling import BioConfig, BioModel, GeCEmbeddings, ProteinEmbeddings
 from ..tasks.registry import create_and_register_models
-from .utils_t5 import T5Stack
 
 URL_PREFIX = "http://macpro.tryps.in:8080/models/tragec/"
-T5_PRETRAINED_MODEL_ARCHIVE_MAP = {}
-T5_PRETRAINED_CONFIG_ARCHIVE_MAP = {}
+FUNNEL_PRETRAINED_MODEL_ARCHIVE_MAP = {}
+FUNNEL_PRETRAINED_CONFIG_ARCHIVE_MAP = {}
 
 
-class BioT5Config(BioConfig, T5Config):
-    pretrained_config_archive_map = T5_PRETRAINED_CONFIG_ARCHIVE_MAP
+class BioFunnelConfig(BioConfig, FunnelConfig):
+    pretrained_config_archive_map = FUNNEL_PRETRAINED_CONFIG_ARCHIVE_MAP
 
     def __init__(self,
                  hidden_size: int = 768,
+                 block_sizes: typing.Optional[list] = None,
                  num_hidden_layers: int = 12,
                  num_attention_heads: int = 12,
                  **kwargs):
-        super().__init__(hidden_size=hidden_size,
-                         **kwargs)
-        T5Config.__init__(self, **kwargs)
+        super().__init__(**kwargs)
+        FunnelConfig.__init__(self, **kwargs)
 
-        # Adapt comparable argument names from T5Config for consistency with BioBertConfig
+        # Adapt comparable argument names from FunnelConfig for consistency with BioBertConfig
+
         self.d_model = hidden_size
-        self.d_ff = self.intermediate_size
-        self.num_layers = num_hidden_layers
-        self.num_heads = num_attention_heads
+        if block_sizes:
+            self.block_sizes = block_sizes
+        else:
+            self.block_sizes = [num_hidden_layers // 3] * 3
+        self.n_head = num_attention_heads
         self.use_cache = False
-        self.feed_forward_proj = 'gated-gelu'
 
     @property
     def hidden_size(self):
@@ -42,13 +45,13 @@ class BioT5Config(BioConfig, T5Config):
         self.d_model = 0
 
 
-class BioT5AbstractModel(BioModel):
+class BioFunnelAbstractModel(BioModel):
     """ An abstract class to handle weights initialization and
         a simple interface for dowloading and loading pretrained models.
     """
-    config_class = BioT5Config
-    pretrained_model_archive_map = T5_PRETRAINED_MODEL_ARCHIVE_MAP
-    base_model_prefix = "t5"
+    config_class = BioFunnelConfig
+    pretrained_model_archive_map = FUNNEL_PRETRAINED_MODEL_ARCHIVE_MAP
+    base_model_prefix = "funnel"
 
     def _init_weights(self, module):
         """ Initialize the weights """
@@ -61,12 +64,12 @@ class BioT5AbstractModel(BioModel):
             module.bias.data.zero_()
 
 
-class BioT5Model(BioT5AbstractModel):
+class BioFunnelModel(BioFunnelAbstractModel):
 
     def __init__(self, config):
         super().__init__(config)
 
-        self.model = T5Stack(config)
+        self.model = FunnelModel(config)
         self.init_weights()
 
     def forward(self,
@@ -77,7 +80,7 @@ class BioT5Model(BioT5AbstractModel):
                           attention_mask=input_mask)
 
 
-class GeCT5Model(BioT5Model):
+class GeCFunnelModel(BioFunnelModel):
 
     def __init__(self, config):
         super().__init__(config)
@@ -85,11 +88,11 @@ class GeCT5Model(BioT5Model):
         self.embedding = GeCEmbeddings(config, position_embeddings=False)
 
 
-class ProteinT5Model(BioT5Model):
+class ProteinFunnelModel(BioFunnelModel):
     def __init__(self, config):
         super().__init__(config)
 
         self.embedding = ProteinEmbeddings(config, position_embeddings=False)
 
 
-create_and_register_models(locals(), BioT5AbstractModel, GeCT5Model, ProteinT5Model, 't5')
+create_and_register_models(locals(), BioFunnelAbstractModel, GeCFunnelModel, ProteinFunnelModel, 'funnel')

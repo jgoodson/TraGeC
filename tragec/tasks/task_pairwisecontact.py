@@ -15,7 +15,7 @@ class BioContactPrediction(BioModel):
         self._ignore_index = config.ignore_index
 
         self.classify = PairwiseContactPredictionHead(
-            config.hidden_size, config.num_labels)
+            config.output_size, config.num_labels)
 
         self.init_weights()
 
@@ -75,10 +75,10 @@ class ProteinContactPredictionModule(BioDataModule):
 
 class PairwiseContactPredictionHead(nn.Module):
     # From songlab-cal TAPE: https://github.com/songlab-cal/tape
-    def __init__(self, hidden_size: int, ignore_index=-100):
+    def __init__(self, input_size: int, ignore_index=-100):
         super().__init__()
         self.predict = nn.Sequential(
-            nn.Dropout(), nn.Linear(2 * hidden_size, 2))
+            nn.Dropout(), nn.Linear(2 * input_size, 2))
         self._ignore_index = ignore_index
 
     def forward(self, inputs):

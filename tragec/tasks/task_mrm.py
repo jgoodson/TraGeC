@@ -16,7 +16,7 @@ class GeCMaskedRecon(BioModel):
         hidden_act = 'gelu'
         layer_norm_eps = config.layer_norm_eps
 
-        self.transform = PredictionHeadTransform(config.hidden_size, hidden_act, layer_norm_eps)
+        self.transform = PredictionHeadTransform(config.hidden_size, config.output_size, hidden_act, layer_norm_eps)
 
         self.decoder = torch.nn.Linear(
             config.hidden_size,

@@ -19,9 +19,12 @@ class ProteinMLM(BioModel):
         layer_norm_eps = config.layer_norm_eps
         ignore_index = config.ignore_index
 
-        self.transform = PredictionHeadTransform(config.hidden_size, hidden_act, layer_norm_eps)
+        self.transform = PredictionHeadTransform(config.hidden_size,
+                                                 config.output_size,
+                                                 hidden_act,
+                                                 layer_norm_eps)
 
-        self.decoder = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.decoder = nn.Linear(config.output_size, config.vocab_size, bias=False)
         self.bias = nn.Parameter(data=torch.zeros(config.vocab_size))  # type: ignore
         self.vocab_size = config.vocab_size
         self._ignore_index = ignore_index
@@ -88,10 +91,11 @@ class PredictionHeadTransform(nn.Module):
     # From songlab-cal TAPE: https://github.com/songlab-cal/tape
     def __init__(self,
                  hidden_size: int,
+                 input_size: int,
                  hidden_act: typing.Union[str, typing.Callable] = 'gelu',
                  layer_norm_eps: float = 1e-12):
         super().__init__()
-        self.dense = nn.Linear(hidden_size, hidden_size)
+        self.dense = nn.Linear(input_size, hidden_size)
         if isinstance(hidden_act, str):
             self.transform_act_fn = get_activation_fn(hidden_act)
         else:
