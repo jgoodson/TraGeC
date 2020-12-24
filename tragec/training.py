@@ -121,7 +121,7 @@ def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, 
         trainer_kwargs['callbacks'] = [es_callback]
     if fp16:
         trainer_kwargs['precision'] = 16
-        logger.warning('Currently FP16 is not playing well with native FP16/Lightning/Transformers')
+        trainer_kwargs['amp_backend'] = 'apex'
     if checkpoint_file:
         trainer_kwargs['resume_from_checkpoint'] = checkpoint_file
     trainer_kwargs['logger'] = pl_loggers.TensorBoardLogger(log_dir, name=exp_name)
