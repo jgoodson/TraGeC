@@ -97,9 +97,12 @@ def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, 
                                               model.config.tokenizer, **optional_dataset_args)
     model.config.optimizer = optimizer
     model.config.learning_rate = learning_rate
-    model.config.warmup_steps = warmup_steps
+    model.config.warmup_steps = warmup_steps // gradient_accumulation_steps
     datamodule.setup()
-    model.config.total_steps = int(len(datamodule.train_dataloader()) * num_train_epochs * train_frac)
+    model.config.total_steps = int(len(datamodule.train_dataloader()) *
+                                   num_train_epochs *
+                                   train_frac /
+                                   gradient_accumulation_steps)
     del datamodule
     datamodule = registry.get_task_datamodule(task, data_dir, batch_size // gradient_accumulation_steps, max_seq_len,
                                               num_workers, seqvec_type,
