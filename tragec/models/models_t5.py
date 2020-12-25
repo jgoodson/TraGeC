@@ -27,7 +27,8 @@ class BioT5Config(BioConfig, T5Config):
 
         # Adapt comparable argument names from T5Config for consistency with BioBertConfig
         self.d_model = hidden_size
-        self.d_ff = self.intermediate_size
+        if 'intermediate_size' in kwargs:
+            self.d_ff = kwargs['intermediate_size']
         self.num_layers = num_hidden_layers
         self.num_heads = num_attention_heads
         self.use_cache = False

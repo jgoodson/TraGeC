@@ -76,6 +76,7 @@ class BioFunnelModel(BioFunnelAbstractModel):
                 sequence_rep,
                 input_mask=None,
                 **kwargs):
+        # TODO: Implement encoder/decoder here with a config option to allow decoder-less use for some tasks
         return self.model(inputs_embeds=self.embedding(sequence_rep, **kwargs),
                           attention_mask=input_mask)
 

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import copy
 import json
 import logging
@@ -115,8 +113,8 @@ class BioConfig(object):
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: PathType,
-                        cache_dir: typing.Optional[PathType],
-                        **kwargs) -> BioConfig:
+                        cache_dir: PathType,
+                        **kwargs):
         r""" Instantiate a :class:`~BioConfig`
              (or a derived class) from a pre-trained model configuration.
 
@@ -199,7 +197,7 @@ class BioConfig(object):
         return config
 
     @classmethod
-    def from_dict(cls, json_object: dict) -> BioConfig:
+    def from_dict(cls, json_object: dict):
         """Constructs a `Config` from a Python dictionary of parameters."""
         config = cls(vocab_size_or_config_json_file=-1)
         for key, value in json_object.items():
@@ -207,7 +205,7 @@ class BioConfig(object):
         return config
 
     @classmethod
-    def from_json_file(cls, json_file: PathType) -> BioConfig:
+    def from_json_file(cls, json_file: PathType):
         """Constructs a `BertConfig` from a json file of parameters."""
         with open(json_file, "r", encoding='utf-8') as reader:
             text = reader.read()
@@ -324,9 +322,9 @@ class BioModel(pl.LightningModule):
                         pretrained_model_name_or_path: PathType,
                         config: typing.Optional[BioConfig] = None,
                         state_dict: typing.Optional[typing.Dict] = None,
-                        cache_dir: typing.Optional[PathType] = None,
+                        cache_dir: PathType = None,
                         force_download: bool = False,
-                        **model_kwargs) -> BioModel:
+                        **model_kwargs):
         r"""Instantiate a pretrained pytorch model from a pre-trained model configuration.
 
         The model is set in evaluation mode by default using ``model.eval()``
