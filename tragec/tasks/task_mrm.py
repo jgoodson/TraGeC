@@ -53,8 +53,15 @@ class GeCMaskedRecon(BioModel):
         masked_targets = targets[targets.sum(1) != 0, :]
 
         loss_fct = torch.nn.MSELoss()
-        masked_recon_loss = loss_fct(
-            masked_states, masked_targets)
+        loss_fct2 = torch.nn.CosineEmbeddingLoss()
+        mse_loss = loss_fct(
+            masked_states, masked_targets
+        )
+        cos_loss = loss_fct2(
+            masked_states, masked_targets, torch.ones_like(masked_states)
+        )
+        masked_recon_loss = mse_loss + cos_loss
+
         with torch.no_grad():
             double_t, double_s = masked_targets.type(torch.float32), masked_states.type(torch.float32)
             numerator = ((double_t - double_s) ** 2).sum(0)
@@ -69,7 +76,8 @@ class GeCMaskedRecon(BioModel):
                 'nse': output_scores.mean(),
                 'L1': torch.nn.L1Loss()(masked_states, masked_targets),
                 'smL1': torch.nn.SmoothL1Loss()(masked_states, masked_targets),
-                'cosine': torch.nn.CosineSimilarity()(masked_states, masked_targets),
+                'mse': mse_loss,
+                'cosine': cos_loss,
             }
             return masked_recon_loss, metrics
 
