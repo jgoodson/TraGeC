@@ -67,6 +67,8 @@ class GeCMaskedRecon(BioModel):
                                               denominator[valid_score])
             metrics = {
                 'nse': output_scores.mean(),
+                'l1': torch.nn.L1Loss()(masked_states, masked_targets),
+                'cosine': torch.nn.CosineEmbeddingLoss()(masked_states, masked_targets),
             }
             return masked_recon_loss, metrics
 
