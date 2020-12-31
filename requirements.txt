@@ -4,6 +4,7 @@ tqdm
 filelock
 torch
 numpy
+scipy
 transformers
 torch_optimizer
 pytorch_lightning
