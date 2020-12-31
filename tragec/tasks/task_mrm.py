@@ -60,7 +60,7 @@ class GeCMaskedRecon(BioModel):
         cos_loss = loss_fct2(
             masked_states.view(masked_states.shape[0], -1),
             masked_targets.view(masked_states.shape[0], -1),
-            torch.ones(masked_states.shape[0])
+            torch.ones(masked_states.shape[0], device=masked_states.device)
         )
         masked_recon_loss = mse_loss + cos_loss
 
