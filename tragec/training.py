@@ -29,6 +29,7 @@ def run_train(model_type: str,
               num_train_epochs: int = 10,
               num_log_iter: int = 20,
               fp16: bool = False,
+              fp16_backend: str = 'native',
               warmup_steps: int = 10000,
               gradient_accumulation_steps: int = 1,
               exp_name: typing.Optional[str] = None,
@@ -73,11 +74,11 @@ def run_train(model_type: str,
             checkpoint_file = [f for f in os.listdir(save_path) if f.endswith('.ckpt')][0]
 
     datamodule, model, trainer = prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, fp16,
-                                                 from_pretrained, gradient_accumulation_steps, learning_rate,
-                                                 log_dir, max_grad_norm, max_seq_len, model_config_file, model_type,
-                                                 n_gpus, no_cuda, num_log_iter, num_train_epochs, num_workers,
-                                                 optimizer, patience, optional_dataset_args, save_path, seed,
-                                                 seqvec_type, task, train_frac, use_tpu, val_frac, warmup_steps,
+                                                 fp16_backend, from_pretrained, gradient_accumulation_steps,
+                                                 learning_rate, log_dir, max_grad_norm, max_seq_len, model_config_file,
+                                                 model_type, n_gpus, no_cuda, num_log_iter, num_train_epochs,
+                                                 num_workers, optimizer, patience, optional_dataset_args, save_path,
+                                                 seed, seqvec_type, task, train_frac, use_tpu, val_frac, warmup_steps,
                                                  fast_dev_run)
 
     trainer.fit(model=model, datamodule=datamodule)
@@ -85,7 +86,7 @@ def run_train(model_type: str,
     model.save_pretrained(save_path)
 
 
-def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, fp16, from_pretrained,
+def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, fp16, fp16_backend, from_pretrained,
                     gradient_accumulation_steps, learning_rate, log_dir, max_grad_norm, max_seq_len, model_config_file,
                     model_type, n_gpus, no_cuda, num_log_iter, num_train_epochs, num_workers, optimizer, patience,
                     optional_dataset_args, save_path, seed, seqvec_type, task, train_frac, use_tpu, val_frac,
@@ -124,7 +125,7 @@ def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, 
         trainer_kwargs['callbacks'] = [es_callback]
     if fp16:
         trainer_kwargs['precision'] = 16
-        trainer_kwargs['amp_backend'] = 'apex'
+        trainer_kwargs['amp_backend'] = fp16_backend
     if checkpoint_file:
         trainer_kwargs['resume_from_checkpoint'] = checkpoint_file
     trainer_kwargs['logger'] = pl_loggers.TensorBoardLogger(log_dir, name=exp_name)
@@ -145,6 +146,7 @@ def run_eval(model_type: str,
              task: str,
              batch_size: int = 1024,
              fp16: bool = False,
+             fp16_backend: str = 'native',
              exp_name: typing.Optional[str] = None,
              from_pretrained: typing.Optional[str] = None,
              log_dir: str = './logs',
@@ -178,6 +180,7 @@ def run_eval(model_type: str,
     }
     if fp16:
         evaluator_kwargs['precision'] = 16
+        evaluator_kwargs['amp_backend'] = fp16_backend
     evaluator_kwargs['logger'] = pl_loggers.TensorBoardLogger(log_dir, name=exp_name)
 
     if not no_cuda and n_gpus > 1:

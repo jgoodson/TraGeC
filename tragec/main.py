@@ -43,6 +43,7 @@ def create_base_parser() -> argparse.ArgumentParser:
                                  logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR],
                         help="log level for the experiment")
     parser.add_argument('--fp16', action='store_true', help='Whether to use fp16 weights')
+    parser.add_argument('--fp16_backend', default='native', help='Which backend to use for AMP. ("native" or "apex")')
     parser.add_argument('--debug', action='store_true', help='Run in debug mode')
     parser.add_argument('--max_seq_len', default=512, type=int,
                         help="Maximum sequence length for sequence_rep data map (GeC models only)")
