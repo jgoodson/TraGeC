@@ -100,6 +100,10 @@ def create_train_parser(base_parser: argparse.ArgumentParser) -> argparse.Argume
                         help="Fraction of the training datamodule to use per-epoch")
     parser.add_argument('--val_frac', default=1., type=float,
                         help="Fraction of the validation datamodule to use")
+    parser.add_argument('--sharded_training', action='store_true',
+                        help='Train with DDP Sharding (requires Fairscale)')
+    parser.add_argument('--deepspeed', action='store_true',
+                        help='Train with DeepSpeed (requires DeepSpeed)')
     return parser
 
 

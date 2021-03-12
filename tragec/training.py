@@ -55,6 +55,8 @@ def run_train(model_type: str,
               val_frac: float = 1.,
               seqvec_type: str = 'seqvec',
               fast_dev_run: bool = False,
+              sharded_training: bool = False,
+              deepspeed: bool = False,
               ) -> None:
     input_args = locals()
 
@@ -79,7 +81,7 @@ def run_train(model_type: str,
                                                  model_type, n_gpus, no_cuda, num_log_iter, num_train_epochs,
                                                  num_workers, optimizer, patience, optional_dataset_args, save_path,
                                                  seed, seqvec_type, task, train_frac, use_tpu, val_frac, warmup_steps,
-                                                 fast_dev_run)
+                                                 fast_dev_run, sharded_training, deepspeed)
 
     trainer.fit(model=model, datamodule=datamodule)
 
@@ -90,7 +92,7 @@ def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, 
                     gradient_accumulation_steps, learning_rate, log_dir, max_grad_norm, max_seq_len, model_config_file,
                     model_type, n_gpus, no_cuda, num_log_iter, num_train_epochs, num_workers, optimizer, patience,
                     optional_dataset_args, save_path, seed, seqvec_type, task, train_frac, use_tpu, val_frac,
-                    warmup_steps, fast_dev_run):
+                    warmup_steps, fast_dev_run, sharded_training, deepspeed):
     pl.seed_everything(seed)
     model = registry.get_task_model(model_type, task, checkpoint_file, model_config_file, from_pretrained)
     datamodule = registry.get_task_datamodule(task, data_dir, batch_size // gradient_accumulation_steps, max_seq_len,
@@ -135,7 +137,11 @@ def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, 
         trainer_kwargs['gpus'] = n_gpus
         trainer_kwargs['accelerator'] = 'ddp'
         trainer_kwargs['replace_sampler_ddp'] = False
-        # trainer_kwargs['plugins'] = ['ddp_sharded']
+        trainer_kwargs['plugins'] = []
+        if sharded_training:
+            trainer_kwargs['plugins'].append('ddp_sharded')
+        if deepspeed:
+            trainer_kwargs['plugins'].append('deepspeed')
     elif not no_cuda:
         trainer_kwargs['gpus'] = 1
     trainer = pl.Trainer(**trainer_kwargs)
