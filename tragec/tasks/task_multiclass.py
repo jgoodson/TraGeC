@@ -5,7 +5,7 @@ from tragec.registry import registry
 from tragec.models.modeling import BioModel
 from tragec.tasks.tasks import SimpleConv, BioDataModule
 from tragec.datasets import ProteinDomainDataset
-from tragec.extras import pos_weights
+from tragec.tasks.extras_multiclass import pos_weights
 
 
 class BioSequenceMultiClassification(BioModel):
