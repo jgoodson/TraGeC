@@ -3,7 +3,8 @@ import pkgutil
 import sys
 from pathlib import Path
 
-from tragec.models.modeling import BioModel, BioConfig
+from tragec.models.modeling import BioModel
+from .models.configuration import BioConfig
 from . import datasets
 
 __version__ = '0.2'

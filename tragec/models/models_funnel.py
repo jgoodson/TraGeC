@@ -6,7 +6,8 @@ from torch import nn
 from torch.nn import LayerNorm
 from transformers import FunnelConfig, FunnelModel
 
-from .modeling import BioConfig, BioModel, GeCEmbeddings, ProteinEmbeddings
+from .modeling import BioModel, GeCEmbeddings, ProteinEmbeddings
+from .configuration import BioConfig
 from ..tasks.registry import create_and_register_models
 
 URL_PREFIX = "https://models.fire.tryps.in/models/tragec/"

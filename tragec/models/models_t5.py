@@ -4,7 +4,8 @@ from torch import nn
 from torch.nn import LayerNorm
 from transformers import T5Config
 
-from .modeling import BioConfig, BioModel, GeCEmbeddings, ProteinEmbeddings
+from .modeling import BioModel, GeCEmbeddings, ProteinEmbeddings
+from .configuration import BioConfig
 from ..tasks.registry import create_and_register_models
 from .utils_t5 import T5Stack
 

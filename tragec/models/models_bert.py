@@ -3,7 +3,8 @@
 from torch import nn
 from transformers import BertModel, BertConfig
 
-from .modeling import BioConfig, BioModel, GeCEmbeddings, ProteinEmbeddings, LayerNorm
+from .modeling import BioModel, GeCEmbeddings, ProteinEmbeddings, LayerNorm
+from .configuration import BioConfig
 from ..tasks.registry import create_and_register_models
 
 URL_PREFIX = "https://models.fire.tryps.in/models/tragec/"

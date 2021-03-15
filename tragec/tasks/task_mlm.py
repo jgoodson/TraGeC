@@ -5,7 +5,8 @@ from torch import nn
 from torch.nn import LayerNorm
 
 from tragec.registry import registry
-from tragec.models.modeling import BioModel, BioConfig
+from tragec.models.modeling import BioModel
+from tragec import BioConfig
 from tragec.tasks.tasks import get_activation_fn, BioDataModule
 from tragec.datasets import ProteinMaskedLanguageModelingDataset
 

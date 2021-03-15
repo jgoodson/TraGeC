@@ -77,7 +77,6 @@ class GeCMaskedRecon(BioModel):
             }
 
         return 1 - nse, metrics
-        # return mse_loss + cos_loss, metrics
 
 
 def create_mrm_model(base_cls, base_model, name, seqtype):
