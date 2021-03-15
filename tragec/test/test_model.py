@@ -66,10 +66,7 @@ class TestGeCBertRecon(unittest.TestCase):
 
     def test_forward(self) -> None:
         target = torch.ones(self.size)
-        try:
-            seq_output = self.model(torch.zeros(self.size), targets=target)[0]
-        except:
-            print(self.config)
+        seq_output = self.model(torch.zeros(self.size), targets=target)[0]
         self.assertEqual(seq_output.shape, self.size)
 
     def test_backward(self) -> None:

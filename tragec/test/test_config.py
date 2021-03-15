@@ -34,7 +34,7 @@ class TestConfig(unittest.TestCase):
     def test_save_and_load(self) -> None:
         with tempfile.TemporaryDirectory() as savedir:
             self.config.save_pretrained(savedir)
-            self.config_cls.from_pretrained(savedir)
+            self.config_cls.from_pretrained(savedir, cache_dir=None)
 
 
 class TestBertConfig(TestConfig):
