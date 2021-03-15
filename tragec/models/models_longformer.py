@@ -7,7 +7,7 @@ from transformers import LongformerModel, LongformerConfig
 from .modeling import BioConfig, BioModel, GeCEmbeddings, ProteinEmbeddings, LayerNorm
 from ..tasks.registry import create_and_register_models
 
-URL_PREFIX = "http://macpro.tryps.in:8080/models/tragec/"
+URL_PREFIX = "https://models.fire.tryps.in/models/tragec/"
 LONGFORMER_PRETRAINED_MODEL_ARCHIVE_MAP = {}
 LONGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP = {}
 

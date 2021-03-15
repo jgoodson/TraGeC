@@ -8,7 +8,7 @@ from .modeling import BioConfig, BioModel, GeCEmbeddings, ProteinEmbeddings
 from ..tasks.registry import create_and_register_models
 from .utils_t5 import T5Stack
 
-URL_PREFIX = "http://macpro.tryps.in:8080/models/tragec/"
+URL_PREFIX = "https://models.fire.tryps.in/models/tragec/"
 T5_PRETRAINED_MODEL_ARCHIVE_MAP = {}
 T5_PRETRAINED_CONFIG_ARCHIVE_MAP = {}
 

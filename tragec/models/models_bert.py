@@ -6,7 +6,7 @@ from transformers import BertModel, BertConfig
 from .modeling import BioConfig, BioModel, GeCEmbeddings, ProteinEmbeddings, LayerNorm
 from ..tasks.registry import create_and_register_models
 
-URL_PREFIX = "http://macpro.tryps.in:8080/models/tragec/"
+URL_PREFIX = "https://models.fire.tryps.in/models/tragec/"
 BERT_PRETRAINED_MODEL_ARCHIVE_MAP = {'prot-tiny_bert': URL_PREFIX + 'prot-tiny_bert-pytorch_model.bin'}
 BERT_PRETRAINED_CONFIG_ARCHIVE_MAP = {'prot-tiny_bert': URL_PREFIX + 'prot-tiny_bert-config.json'}
 
