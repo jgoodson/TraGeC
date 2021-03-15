@@ -170,8 +170,6 @@ class Registry:
         if pretrained_model is not None:
             model = model_cls.from_pretrained(pretrained_model, num_labels=task_spec.num_labels,
                                               **task_spec.extra_conf_kwargs)
-        elif checkpoint is not None:
-            model = model_cls.load_from_checkpoint(checkpoint)
         else:
             config_class = model_cls.config_class
             if config_file is not None:
@@ -184,7 +182,10 @@ class Registry:
             config.num_labels = task_spec.num_labels
             for k, v in task_spec.extra_conf_kwargs.items():
                 setattr(config, k, v)
-            model = model_cls(config)
+            if checkpoint is not None:
+                model = model_cls.load_from_checkpoint(checkpoint, config=config)
+            else:
+                model = model_cls(config)
         return model
 
     @classmethod

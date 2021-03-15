@@ -72,8 +72,15 @@ def run_train(model_type: str,
 
     if resume_from_checkpoint:
         if not checkpoint_file:
-            print(save_path)
-            checkpoint_file = [f for f in os.listdir(save_path) if f.endswith('.ckpt')][0]
+            last_version = sorted([f.split('_')[1] for f in os.listdir(f'{log_dir}/{exp_name}')
+                                   if f.startswith('version_')], key=int)[-1]
+
+            checkpoints = [f for f in os.listdir(f'{log_dir}/{exp_name}/version_{last_version}/checkpoints')
+                           if f.endswith('.ckpt')]
+            if checkpoints:
+                checkpoint_file = f'{log_dir}/{exp_name}/version_{last_version}/checkpoints/{checkpoints[0]}'
+            else:
+                raise UserWarning('Did not find checkpoint from most recent run. Starting training from scratch.')
 
     datamodule, model, trainer = prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, fp16,
                                                  fp16_backend, from_pretrained, gradient_accumulation_steps,
