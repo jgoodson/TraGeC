@@ -43,7 +43,7 @@ class GeCMaskedRecon(BioModel):
         return output
 
     @staticmethod
-    def _compare(results, batch):
+    def _compare(results, batch, eps=1e-7):
         hidden_states = results[0]
         hidden_states = hidden_states.reshape((np.prod(hidden_states.shape[:2]),) + hidden_states.shape[2:])
         targets = batch['targets']
@@ -62,26 +62,22 @@ class GeCMaskedRecon(BioModel):
             masked_targets.view(masked_states.shape[0], -1),
             torch.ones(masked_states.shape[0], device=masked_states.device)
         )
-        masked_recon_loss = mse_loss + cos_loss
+
+        numerator = ((masked_targets - masked_states) ** 2).sum(0) + eps
+        denominator = ((masked_targets - masked_targets.mean(0)) ** 2).sum(0) + eps
+        nse = (1 - (numerator / denominator)).mean()
 
         with torch.no_grad():
-            double_t, double_s = masked_targets.type(torch.float32), masked_states.type(torch.float32)
-            numerator = ((double_t - double_s) ** 2).sum(0)
-            denominator = ((double_t - double_t.mean(0)) ** 2).sum(0)
-            nonzero_denominator = denominator != 0
-            nonzero_numerator = numerator != 0
-            valid_score = nonzero_denominator & nonzero_numerator
-            output_scores = torch.ones([double_t.shape[1]], dtype=torch.float32, device=numerator.device)
-            output_scores[valid_score] = 1 - (numerator[valid_score] /
-                                              denominator[valid_score])
             metrics = {
-                'nse': output_scores.mean(),
+                'nse': nse,
                 'L1': torch.nn.L1Loss()(masked_states, masked_targets),
                 'smL1': torch.nn.SmoothL1Loss()(masked_states, masked_targets),
                 'mse': mse_loss,
                 'cosine': cos_loss,
             }
-            return masked_recon_loss, metrics
+
+        return 1 - nse, metrics
+        # return mse_loss + cos_loss, metrics
 
 
 def create_mrm_model(base_cls, base_model, name, seqtype):
