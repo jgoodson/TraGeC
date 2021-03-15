@@ -4,7 +4,7 @@
 import math
 import pickle
 import random
-from abc import ABC
+from abc import ABC, abstractmethod
 from copy import copy
 from functools import partial
 from pathlib import Path
@@ -54,6 +54,7 @@ class BioDataset(Dataset, Sized, ABC):
         return 0
 
     @staticmethod
+    @abstractmethod
     def collate_fn(batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray]]) -> Dict[str, torch.Tensor]:
         pass
 
@@ -109,9 +110,9 @@ class LMDBDataset(Dataset):
         return item
 
     def __getstate__(self):
-        dict = self.__dict__.copy()
-        del dict['_env']
-        return dict
+        d = self.__dict__.copy()
+        del d['_env']
+        return d
 
     def __setstate__(self, state):
         self.__dict__.update(state)
@@ -371,6 +372,7 @@ class ProteinMaskedLanguageModelingDataset(BioDataset):
         input_mask = torch.from_numpy(pad_sequences(input_mask, 0))
         # ignore_index is -1
         lm_label_ids = torch.from_numpy(pad_sequences(lm_label_ids, -1))
+        # The following data is available from TAPE
         # clan = torch.LongTensor(clan)  # type: ignore
         # family = torch.LongTensor(family)  # type: ignore
 
@@ -385,7 +387,7 @@ class ProteinMaskedLanguageModelingDataset(BioDataset):
         for i, token in enumerate(tokens):
             # Tokens begin and end with start_token and stop_token, ignore these
             if token in (self.tokenizer.start_token, self.tokenizer.stop_token):
-                pass
+                continue
 
             prob = random.random()
             if prob < self.percentmasked:
