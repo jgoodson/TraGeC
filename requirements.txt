@@ -9,3 +9,4 @@ transformers
 torch_optimizer
 pytorch_lightning
 lmdb
+pymongo
