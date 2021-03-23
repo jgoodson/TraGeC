@@ -115,8 +115,8 @@ def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, 
                                    gradient_accumulation_steps)
     del datamodule
     datamodule = registry.get_task_datamodule(task, data_dir, batch_size // gradient_accumulation_steps, max_seq_len,
-                                              num_workers, seqvec_type,
-                                              model.config.tokenizer, **optional_dataset_args)
+                                              num_workers, seqvec_type=seqvec_type, tokenizer=model.config.tokenizer,
+                                              **optional_dataset_args)
     datamodule.distributed = n_gpus > 1 or use_tpu
     trainer_kwargs = {
         'accumulate_grad_batches': gradient_accumulation_steps,

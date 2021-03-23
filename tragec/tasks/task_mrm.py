@@ -101,7 +101,7 @@ def create_mrm_model(base_cls, base_model, name, seqtype):
 
 @registry.register_task('masked_recon_modeling')
 @registry.register_task('masked_recon_modeling_fp16',
-                        dataset_kwargs={'dtype': np.float16, 'seqvec_type': 'pcavec_fp16'})
+                        dataset_kwargs={'dtype': np.float16})
 class GeCMaskedReconDataModule(BioDataModule):
 
     def __init__(self, *args, **kwargs):

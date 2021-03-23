@@ -193,11 +193,9 @@ class Registry:
                             batch_size: int,
                             max_seq_len: int,
                             num_workers: int,
-                            seqvec_type: str,
-                            tokenizer: str,
                             **kwargs) -> BioDataModule:
         task_spec = registry.get_task_spec(task_name)
-        return task_spec.datamodule(data_dir, batch_size, max_seq_len, num_workers, seqvec_type, tokenizer,
+        return task_spec.datamodule(data_dir, batch_size, max_seq_len, num_workers,
                                     **kwargs, **task_spec.extra_dataset_kwargs)
 
 
