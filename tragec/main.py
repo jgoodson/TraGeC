@@ -32,7 +32,7 @@ def create_base_parser() -> argparse.ArgumentParser:
     parser.add_argument('--local_rank', type=int, default=-1,
                         help='Local rank of process in distributed training. '
                              'Set by launch script.')
-    parser.add_argument('--seqvec_type', choices=['seqvec'],
+    parser.add_argument('--seqvec_type',
                         default='seqvec', help='Type of pre-computed sequence vectors for gec models')
     parser.add_argument('--num_workers', default=8, type=int,
                         help='Number of workers to use for multi-threaded data loading')
