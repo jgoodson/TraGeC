@@ -79,7 +79,7 @@ def dataset_factory(data_file: Union[str, Path], *args, **kwargs) -> SizedDatase
         raise ValueError(f"Unrecognized datafile type {data_file.suffix}")
 
 
-class LMDBDataset(BioDataset):
+class LMDBDataset(SizedDataset):
     """Creates a datamodule from an lmdb file.
     Args:
         data_file (Union[str, Path]): Path to lmdb file.
