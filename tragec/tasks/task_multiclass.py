@@ -76,7 +76,7 @@ def create_multiclass_model(base_cls, base_model, name, seqtype):
     return mc_model
 
 
-@registry.register_task('protein_domain', num_labels=14808, pos_weights=pos_weights)
+@registry.register_task('protein_domain', model_kwargs={'num_labels': 14808, 'pos_weights': pos_weights})
 class ProteinDomainPredictionModule(BioDataModule):
 
     def __init__(self, *args, **kwargs):

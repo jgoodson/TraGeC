@@ -16,19 +16,17 @@ class TaskSpec(object):
         The name of the GeC task
     datamodule (Type[BioDataModule]):
         The datamodule used in the GeC task
-    num_labels (int):
-        number of labels used if this is a classification task
     models (Dict[str, BioModel]):
         The set of models that can be used for this task. Default: {}.
     """
 
-    def __init__(self, name: str, datamodule: Type[BioDataModule], num_labels: int = -1,
-                 models: Optional[Dict[str, Type[BioModel]]] = None, model_kwargs: Optional[dict] = None):
+    def __init__(self, name: str, datamodule: Type[BioDataModule], models: Optional[Dict[str, Type[BioModel]]] = None,
+                 model_kwargs: Optional[dict] = None, dataset_kwargs: Optional[dict] = None):
         self.name = name
         self.datamodule = datamodule
-        self.num_labels = num_labels
         self.models = models if models is not None else {}
-        self.extra_conf_kwargs = model_kwargs
+        self.extra_model_kwargs = model_kwargs or {}
+        self.extra_dataset_kwargs = dataset_kwargs or {}
 
     def register_model(self, model_name: str, model_cls: Optional[Type[BioModel]] = None):
         if model_cls is not None:
@@ -57,30 +55,31 @@ class Registry:
     @classmethod
     def register_task(cls,
                       task_name: str,
-                      num_labels: int = -1,
                       datamodule: Optional[Type[BioDataModule]] = None,
                       models: Optional[Dict[str, Type[BioModel]]] = None,
-                      **model_kwargs):
+                      model_kwargs: Optional[dict] = None,
+                      dataset_kwargs: Optional[dict] = None, ):
         """ Register a a new tragec task. This creates a new TaskSpec.
 
         Args:
 
             task_name (str): The name of the tragec task.
-            num_labels (int): Number of labels used if this is a classification task. If this
-                is not a classification task, simply leave the default as -1.
             datamodule (Type[BioDataModule]): The data module used in the tragec task.
             models (Optional[Dict[str, BioModel]]): The set of models that can be used for
                 this task. If you do not pass this argument, you can register models to the task
                 later by using `registry.register_task_model`. Default: {}.
+            model_kwargs (Optional[Dict]): Extra kwargs passed to the model constructor
+            dataset_kwargs (Optional[Dict]): Extra kwargs passed to the dataset constructor
 
         """
         if datamodule is not None:
             if models is None:
                 models = {}
-            task_spec = TaskSpec(task_name, datamodule, num_labels, models, model_kwargs)
+            task_spec = TaskSpec(task_name, datamodule, models, model_kwargs, dataset_kwargs)
             return cls.register_task_spec(task_name, task_spec).datamodule
         else:
-            return lambda datamodule: cls.register_task(task_name, num_labels, datamodule, models, **model_kwargs)
+            return lambda datamodule: cls.register_task(task_name, datamodule, models,
+                                                        model_kwargs, dataset_kwargs)
 
     @classmethod
     def register_task_spec(cls, task_name: str, task_spec: Optional[TaskSpec] = None):
@@ -168,8 +167,8 @@ class Registry:
         model_cls = task_spec.get_model(model_name)
 
         if pretrained_model is not None:
-            model = model_cls.from_pretrained(pretrained_model, num_labels=task_spec.num_labels,
-                                              **task_spec.extra_conf_kwargs)
+            model = model_cls.from_pretrained(pretrained_model,
+                                              **task_spec.extra_model_kwargs)
         else:
             config_class = model_cls.config_class
             if config_file is not None:
@@ -179,8 +178,7 @@ class Registry:
                 config = config_class(**json.loads(text))
             else:
                 config = config_class()
-            config.num_labels = task_spec.num_labels
-            for k, v in task_spec.extra_conf_kwargs.items():
+            for k, v in task_spec.extra_model_kwargs.items():
                 setattr(config, k, v)
             if checkpoint is not None:
                 model = model_cls.load_from_checkpoint(checkpoint, config=config)
@@ -200,7 +198,7 @@ class Registry:
                             **kwargs) -> BioDataModule:
         task_spec = registry.get_task_spec(task_name)
         return task_spec.datamodule(data_dir, batch_size, max_seq_len, num_workers, seqvec_type, tokenizer,
-                                    **kwargs)
+                                    **kwargs, **task_spec.extra_dataset_kwargs)
 
 
 registry = Registry()

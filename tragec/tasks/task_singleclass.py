@@ -60,7 +60,7 @@ def create_seqclass_model(base_cls, base_model, name, seqtype):
     return sc_model
 
 
-@registry.register_task('classify_gec', num_labels=19)
+@registry.register_task('classify_gec', model_kwargs={'num_labels': 19})
 class GeCSequenceClassificationDataModule(BioDataModule):
 
     def __init__(self, *args, **kwargs):
@@ -71,7 +71,7 @@ class GeCSequenceClassificationDataModule(BioDataModule):
         self.val_split = 'valid'
 
 
-@registry.register_task('remote_homology', num_labels=1195)
+@registry.register_task('remote_homology', model_kwargs={'num_labels': 1195})
 class ProteinRemoteHomologyModule(BioDataModule):
 
     def __init__(self, *args, **kwargs):

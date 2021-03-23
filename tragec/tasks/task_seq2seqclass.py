@@ -69,7 +69,7 @@ def create_seq2seqclass_model(base_cls, base_model, name, seqtype):
 # TODO: GeC seq2seq per-gene classification dataset
 
 
-@registry.register_task('secondary_structure', num_labels=3)
+@registry.register_task('secondary_structure', model_kwargs={'num_labels': 3})
 class ProteinSecondaryStructureModule(BioDataModule):
 
     def __init__(self, *args, **kwargs):

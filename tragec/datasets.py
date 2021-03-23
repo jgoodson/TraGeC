@@ -48,9 +48,13 @@ def pad_sequences(sequences: Sequence[Union[np.ndarray, torch.Tensor]],
     return array
 
 
-class BioDataset(Dataset, Sized, ABC):
+class SizedDataset(Dataset, Sized, ABC):
+    pass
 
-    def item_length(self, index):
+
+class BioDataset(SizedDataset):
+
+    def item_length(self, index) -> int:
         return 0
 
     @staticmethod
@@ -59,7 +63,7 @@ class BioDataset(Dataset, Sized, ABC):
         pass
 
 
-def dataset_factory(data_file: Union[str, Path], *args, **kwargs) -> BioDataset:
+def dataset_factory(data_file: Union[str, Path], *args, **kwargs) -> SizedDataset:
     data_file = Path(data_file)
     if not data_file.exists():
         raise FileNotFoundError(data_file)
@@ -75,7 +79,7 @@ def dataset_factory(data_file: Union[str, Path], *args, **kwargs) -> BioDataset:
         raise ValueError(f"Unrecognized datafile type {data_file.suffix}")
 
 
-class LMDBDataset(Dataset):
+class LMDBDataset(BioDataset):
     """Creates a datamodule from an lmdb file.
     Args:
         data_file (Union[str, Path]): Path to lmdb file.
@@ -126,12 +130,10 @@ class GeCMaskedReconstructionDataset(BioDataset):
     Args:
         data_path (Union[str, Path]): Path to tragec data root.
         split (str): One of ['train', 'valid', 'holdout'], specifies which data file to load.
-        in_memory (bool, optional): Whether to load the full datamodule into memory.
-            Default: False.
     """
 
     def __init__(self, data_path: Union[str, Path], split: str, seqvec_type: str = 'seqvec', max_seq_len: int = 512,
-                 percentmasked=.15, **kwargs):
+                 percentmasked=.15, dtype='f4', **kwargs):
         super().__init__()
         if split not in ('train', 'valid', 'holdout'):
             raise ValueError(
@@ -144,7 +146,7 @@ class GeCMaskedReconstructionDataset(BioDataset):
         seqvec_file = f'seqvec/{seqvec_type}.lmdb'
         self.data = LMDBDataset(data_path / data_file, )
         self.refseq = LMDBDataset(data_path / refseq_file, )
-        array_decode = partial(np.frombuffer, dtype=np.float32)
+        array_decode = partial(np.frombuffer, dtype=dtype)
         self.seqvec = LMDBDataset(data_path / seqvec_file, decode_method=array_decode)
         self.percentmasked = percentmasked
 
@@ -237,10 +239,9 @@ class EmbedDataset(BioDataset):
 
     def __init__(self,
                  data_file: Union[str, Path],
-                 in_memory: bool = False,
                  **kwargs):
         super().__init__()
-        self.data = dataset_factory(data_file, in_memory=in_memory)
+        self.data = dataset_factory(data_file)
 
     def __len__(self) -> int:
         return len(self.data)
@@ -322,8 +323,6 @@ class ProteinMaskedLanguageModelingDataset(BioDataset):
     Args:
         data_path (Union[str, Path]): Path to tape data root.
         split (str): One of ['train', 'valid', 'holdout'], specifies which data file to load.
-        in_memory (bool, optional): Whether to load the full dataset into memory.
-            Default: False.
     """
 
     def __init__(self,
@@ -630,8 +629,7 @@ class ProteinDomainDataset(BioDataset):
     def __init__(self,
                  data_path: Union[str, Path],
                  split: str,
-                 tokenizer: Union[str, TAPETokenizer] = 'iupac',
-                 in_memory: bool = False):
+                 tokenizer: Union[str, TAPETokenizer] = 'iupac'):
         # need to change the labels by looking at the pfam data
         if split not in ('train', 'valid', 'holdout'):
             raise ValueError(f"Unrecognized split: {split}. Must be one of "
