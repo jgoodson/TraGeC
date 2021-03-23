@@ -133,7 +133,7 @@ class GeCMaskedReconstructionDataset(BioDataset):
     """
 
     def __init__(self, data_path: Union[str, Path], split: str, seqvec_type: str = 'seqvec', max_seq_len: int = 512,
-                 percentmasked=.15, dtype='f4', **kwargs):
+                 percentmasked=.15, dtype=np.float32, **kwargs):
         super().__init__()
         if split not in ('train', 'valid', 'holdout'):
             raise ValueError(

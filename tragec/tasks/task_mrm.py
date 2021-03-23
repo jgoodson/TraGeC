@@ -94,11 +94,14 @@ def create_mrm_model(base_cls, base_model, name, seqtype):
 
     if seqtype == 'gec':
         registry.register_task_model('masked_recon_modeling', f'gec_{name.lower()}', mrm_model)
+        registry.register_task_model('masked_recon_modeling_fp16', f'gec_{name.lower()}', mrm_model)
 
     return mrm_model
 
 
 @registry.register_task('masked_recon_modeling')
+@registry.register_task('masked_recon_modeling_fp16',
+                        dataset_kwargs={'dtype': np.float16, 'seqvec_type': 'pcavec_fp16'})
 class GeCMaskedReconDataModule(BioDataModule):
 
     def __init__(self, *args, **kwargs):
