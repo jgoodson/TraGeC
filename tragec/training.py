@@ -103,8 +103,8 @@ def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, 
     pl.seed_everything(seed)
     model = registry.get_task_model(model_type, task, checkpoint_file, model_config_file, from_pretrained)
     datamodule = registry.get_task_datamodule(task, data_dir, batch_size // gradient_accumulation_steps, max_seq_len,
-                                              num_workers, seqvec_type,
-                                              model.config.tokenizer, **optional_dataset_args)
+                                              num_workers, seqvec_type=seqvec_type, tokenizer=model.config.tokenizer,
+                                              **optional_dataset_args)
     model.config.optimizer = optimizer
     model.config.learning_rate = learning_rate
     model.config.warmup_steps = warmup_steps // gradient_accumulation_steps
