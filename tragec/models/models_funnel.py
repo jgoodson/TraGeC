@@ -24,8 +24,8 @@ class BioFunnelConfig(BioConfig, FunnelConfig):
                  num_hidden_layers: int = 12,
                  num_attention_heads: int = 12,
                  **kwargs):
-        super().__init__(**kwargs)
         FunnelConfig.__init__(self, **kwargs)
+        super().__init__(**kwargs)
 
         # Adapt comparable argument names from FunnelConfig for consistency with BioBertConfig
 

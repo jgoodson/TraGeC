@@ -19,10 +19,11 @@ class BioLongformerConfig(BioConfig, LongformerConfig):
     def __init__(self,
                  attention_window: int = 64,
                  **kwargs):
-        super().__init__(**kwargs)
         LongformerConfig.__init__(self,
                                   attention_window=attention_window,
                                   **kwargs)
+        super().__init__(**kwargs)
+
         self.return_dict = True
 
 

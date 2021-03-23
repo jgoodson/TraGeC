@@ -22,9 +22,9 @@ class BioT5Config(BioConfig, T5Config):
                  num_hidden_layers: int = 12,
                  num_attention_heads: int = 12,
                  **kwargs):
+        T5Config.__init__(self, **kwargs)
         super().__init__(hidden_size=hidden_size,
                          **kwargs)
-        T5Config.__init__(self, **kwargs)
 
         # Adapt comparable argument names from T5Config for consistency with BioBertConfig
         self.d_model = hidden_size

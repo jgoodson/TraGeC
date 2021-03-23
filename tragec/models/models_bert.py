@@ -17,8 +17,8 @@ class BioBertConfig(BioConfig, BertConfig):
 
     def __init__(self,
                  **kwargs):
-        super().__init__(**kwargs)
         BertConfig.__init__(self, **kwargs)
+        super().__init__(**kwargs)
         self.return_dict = True
 
 
