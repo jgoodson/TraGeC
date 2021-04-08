@@ -97,8 +97,11 @@ class LMDBDataset(SizedDataset):
         env = lmdb.open(self._data_file, max_readers=1, readonly=True,
                         lock=False, readahead=False, meminit=False)
 
-        with env.begin(write=False) as _:
-            num_examples = env.stat()['entries']
+        with env.begin(write=False) as txn:
+            if txn.get(b'num_examples'):
+                num_examples = pickle.loads(txn.get(b'num_examples'))
+            else:
+                num_examples = env.stat()['entries']
 
         self._env = env
         self._num_examples = num_examples
