@@ -362,9 +362,6 @@ class ProteinMaskedLanguageModelingDataset(BioDataset):
             self.tokenizer.convert_tokens_to_ids(masked_tokens), np.int64)
         input_mask = np.ones_like(masked_token_ids)
 
-        masked_token_ids = np.array(
-            self.tokenizer.convert_tokens_to_ids(masked_tokens), np.int64)
-
         return masked_token_ids, input_mask, labels, item['clan'], item['family']
 
     def collate_fn(self, batch: List[Any]) -> Dict[str, torch.Tensor]:
