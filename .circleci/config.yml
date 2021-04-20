@@ -7,8 +7,8 @@ workflows:
   main:
     jobs:
       - python/test:
-          version: 3.6
+          version: "3.6"
       - python/test:
-          version: 3.7
+          version: "3.7"
       - python/test:
-          version: 3.8
+          version: "3.8"
