@@ -12,7 +12,7 @@ class TestTAPEDataset(unittest.TestCase):
     item_length = 3
 
     def setUp(self) -> None:
-        self.dataset = self.config_cls(data_path='data', split='train')
+        self.dataset = self.config_cls(data_path='tragec/test/data', split='train')
 
     def test_length(self) -> None:
         assert len(self.dataset) == 2
