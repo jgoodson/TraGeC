@@ -8,9 +8,9 @@ import os
 import typing
 import warnings
 
-from . import training
-from . import utils
-from .registry import registry
+from tragec import training
+from tragec import utils
+from tragec.registry import registry
 
 CallbackList = typing.Sequence[typing.Callable]
 OutputDict = typing.Dict[str, typing.List[typing.Any]]
@@ -71,7 +71,7 @@ def create_train_parser(base_parser: argparse.ArgumentParser) -> argparse.Argume
                         help='Number of training epochs')
     parser.add_argument('--num_log_iter', default=20, type=int,
                         help='Number of training steps per log iteration')
-    parser.add_argument('--warmup_steps', default=10000, type=int,
+    parser.add_argument('--warmup_steps', default=1, type=int,
                         help='Number of learning rate warmup steps')
     parser.add_argument('--gradient_accumulation_steps', default=1, type=int,
                         help='Number of forward passes to make for each gradient update')
