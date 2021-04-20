@@ -67,22 +67,8 @@ class TestTraGeCDataset(TestTAPEDataset):
     item_type = tuple
     item_length = 5
 
-    def setUp(self) -> None:
-        self.dataset = self.config_cls(data_path='data', split='train')
 
-    def test_length(self) -> None:
-        assert len(self.dataset) == 2
-
-    def test_getitem(self) -> None:
-        assert isinstance(self.dataset[0], self.item_type)
-        assert len(self.dataset[1]) == self.item_length
-
-    def test_collate(self) -> None:
-        batch = self.dataset.collate_fn([self.dataset[0], self.dataset[1]])
-        assert (isinstance(batch, dict))
-
-
-class TestGeCClassification(TestTAPEDataset):
+class TestGeCClassification(TestTraGeCDataset):
     config_cls = GeCClassificationDataset
     item_type = tuple
     item_length = 5
