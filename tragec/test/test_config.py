@@ -1,13 +1,8 @@
 import unittest
 import tempfile
 
-import numpy as np
-import torch
-
-from tragec.datasets import GeCMaskedReconstructionDataset
 from tragec import BioConfig
 from tragec.models.models_bert import GeCBertModel, BioBertConfig
-from tragec.models.models_t5 import BioT5Config, GeCT5Model
 
 test_config_kwargs = dict(
     hidden_size=128,
