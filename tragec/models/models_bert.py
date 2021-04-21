@@ -30,24 +30,12 @@ class BioBertAbstractModel(BioModel):
     config_class = BioBertConfig
     pretrained_model_archive_map = BERT_PRETRAINED_MODEL_ARCHIVE_MAP
 
-    def _init_weights(self, module):
-        """ Initialize the weights """
-        if isinstance(module, (nn.Linear, nn.Embedding)):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
-        elif isinstance(module, LayerNorm):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
-        if isinstance(module, nn.Linear) and module.bias is not None:
-            module.bias.data.zero_()
-
-
 class BioBertModel(BioBertAbstractModel):
 
     def __init__(self, config):
         super().__init__(config)
 
         self.model = BertModel(config)
-
         self.init_weights()
 
     def forward(self,
