@@ -383,11 +383,12 @@ class BioModel(pl.LightningModule):
 
 
 def create_sinusoidal_embeddings(n_pos, dim, out):
-    position_enc = np.array([[pos / np.power(10000, 2 * (j // 2) / dim) for j in range(dim)] for pos in range(n_pos)])
-    out[:, 0::2] = torch.tensor(np.sin(position_enc[:, 0::2]), device=out.device)
-    out[:, 1::2] = torch.tensor(np.cos(position_enc[:, 1::2]), device=out.device)
-    out.detach_()
     out.requires_grad = False
+    positions = torch.arange(0, n_pos)[:, None]
+    dimensions = torch.arange(0, dim)
+    position_enc = (positions / torch.pow(10000, 2 * (dimensions // 2) / dim)).to(out.device)
+    out[:, 0::2] = torch.sin(position_enc[:, 0::2])
+    out[:, 1::2] = torch.cos(position_enc[:, 1::2])
 
 
 class ProteinEmbeddings(nn.Module):
@@ -448,7 +449,7 @@ class GeCEmbeddings(nn.Module):
         self.generep_embeddings = nn.Linear(
             config.input_rep_size, config.hidden_size)
         if position_embeddings:
-            self.position_embeddings: nn.Embedding = nn.Embedding(config.gene_max_length, config.hidden_size)
+            self.position_embeddings: nn.Embedding = nn.Embedding(config.max_position_embeddings, config.hidden_size)
             if config.sinusoidal_pos_embds:
                 create_sinusoidal_embeddings(
                     n_pos=config.max_position_embeddings, dim=config.hidden_size, out=self.position_embeddings.weight
