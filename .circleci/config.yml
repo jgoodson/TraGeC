@@ -1,29 +1,14 @@
 version: 2.1
 
 orbs:
-  python: circleci/python@0.2.1
-
-jobs:
-  build-and-test:
-    executor: python/default
-    steps:
-      - checkout
-      - python/load-cache
-      - python/install-deps
-      - python/save-cache
-      - run:
-          command: pip install --user .
-      - run:
-          command: python tragec/test/test_config.py
-          name: Test Configs
-      - run:
-          command: python tragec/test/test_model.py
-          name: Test Models
-      - run:
-          command: python tragec/test/test_datasets.py
-          name: Test Datasets
+  python: circleci/python@1.3.4
 
 workflows:
   main:
     jobs:
-      - build-and-test
+      - python/test:
+          version: "3.6"
+      - python/test:
+          version: "3.7"
+      - python/test:
+          version: "3.8"
