@@ -15,7 +15,6 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from scipy.spatial.distance import pdist, squareform
-import bson
 
 from .tokenizers import TAPETokenizer
 
@@ -88,7 +87,7 @@ class LMDBDataset(SizedDataset):
 
     def __init__(self,
                  data_file: Union[str, Path],
-                 decode_method: Callable = bson.decode):
+                 decode_method: Callable = pickle.loads):
         data_file = Path(data_file)
         if not data_file.exists():
             raise FileNotFoundError(data_file)
@@ -99,7 +98,7 @@ class LMDBDataset(SizedDataset):
 
         with env.begin(write=False) as txn:
             if txn.get(b'num_examples'):
-                num_examples = pickle.loads(txn.get(b'num_examples'))
+                num_examples = decode_method(txn.get(b'num_examples'))
             else:
                 num_examples = env.stat()['entries']
 
@@ -147,8 +146,8 @@ class GeCMaskedReconstructionDataset(BioDataset):
         data_file = f'refseq/maps{max_seq_len}/refseq_{split}.lmdb'
         refseq_file = f'refseq/refseq.lmdb'
         seqvec_file = f'seqvec/{seqvec_type}.lmdb'
-        self.data = LMDBDataset(data_path / data_file, )
-        self.refseq = LMDBDataset(data_path / refseq_file, )
+        self.data = LMDBDataset(data_path / data_file)
+        self.refseq = LMDBDataset(data_path / refseq_file)
         array_decode = partial(np.frombuffer, dtype=dtype)
         self.seqvec = LMDBDataset(data_path / seqvec_file, decode_method=array_decode)
         self.percentmasked = percentmasked
@@ -344,7 +343,7 @@ class ProteinMaskedLanguageModelingDataset(BioDataset):
         if data_path:
             data_path = Path(data_path)
             data_file = f'pfam/pfam_{split}.lmdb'
-            self.data = dataset_factory(data_path / data_file, decode_method=pickle.loads)
+            self.data = dataset_factory(data_path / data_file)
         self.percentmasked = percentmasked
 
     def __len__(self) -> int:
@@ -427,7 +426,7 @@ class ProteinRemoteHomologyDataset(BioDataset):
 
         data_path = Path(data_path)
         data_file = f'remote_homology/remote_homology_{split}.lmdb'
-        self.data = dataset_factory(data_path / data_file, decode_method=pickle.loads)
+        self.data = dataset_factory(data_path / data_file)
 
     def __len__(self) -> int:
         return len(self.data)
@@ -466,7 +465,7 @@ class ProteinSecondaryStructureDataset(BioDataset):
 
         data_path = Path(data_path)
         data_file = f'secondary_structure/secondary_structure_{split}.lmdb'
-        self.data = dataset_factory(data_path / data_file, decode_method=pickle.loads)
+        self.data = dataset_factory(data_path / data_file)
 
     def __len__(self) -> int:
         return len(self.data)
@@ -511,7 +510,7 @@ class ProteinFluorescenceDataset(BioDataset):
 
         data_path = Path(data_path)
         data_file = f'fluorescence/fluorescence_{split}.lmdb'
-        self.data = dataset_factory(data_path / data_file, decode_method=pickle.loads)
+        self.data = dataset_factory(data_path / data_file)
 
     def __len__(self) -> int:
         return len(self.data)
@@ -551,7 +550,7 @@ class ProteinStabilityDataset(BioDataset):
         data_path = Path(data_path)
         data_file = f'stability/stability_{split}.lmdb'
 
-        self.data = dataset_factory(data_path / data_file, decode_method=pickle.loads)
+        self.data = dataset_factory(data_path / data_file)
 
     def __len__(self) -> int:
         return len(self.data)
@@ -591,7 +590,7 @@ class ProteinnetDataset(BioDataset):
 
         data_path = Path(data_path)
         data_file = f'proteinnet/proteinnet_{split}.lmdb'
-        self.data = dataset_factory(data_path / data_file, decode_method=pickle.loads)
+        self.data = dataset_factory(data_path / data_file)
 
     def __len__(self) -> int:
         return len(self.data)
@@ -640,7 +639,7 @@ class ProteinDomainDataset(BioDataset):
 
         data_path = Path(data_path)
         data_file = f'domain/domain_{split}.lmdb'
-        self.data = dataset_factory(data_path / data_file, decode_method=pickle.loads)
+        self.data = dataset_factory(data_path / data_file)
 
     def __len__(self) -> int:
         return len(self.data)
