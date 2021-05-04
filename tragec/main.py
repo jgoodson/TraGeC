@@ -191,13 +191,6 @@ def run_train(args: typing.Optional[argparse.Namespace] = None, env=None) -> Non
             f"Invalid gradient_accumulation_steps parameter: "
             f"{args.gradient_accumulation_steps}, should be >= 1")
 
-    arg_dict = vars(args)
-    arg_names = inspect.getfullargspec(training.run_train).args
-
-    missing = set(arg_names) - set(arg_dict.keys())
-    if missing:
-        raise RuntimeError(f"Missing arguments: {missing}")
-
     training.run_train(args)
 
 
@@ -213,14 +206,7 @@ def run_eval(args: typing.Optional[argparse.Namespace] = None) -> typing.Dict[st
     if args.local_rank != -1:
         raise ValueError("DLGeC does not support distributed validation pass")
 
-    arg_dict = vars(args)
-    arg_names = inspect.getfullargspec(training.run_eval).args
-
-    missing = set(arg_names) - set(arg_dict.keys())
-    if missing:
-        raise RuntimeError(f"Missing arguments: {missing}")
-    eval_args = {name: arg_dict[name] for name in arg_names}
-    return training.run_eval(**eval_args)
+    return training.run_eval(args)
 
 
 '''
