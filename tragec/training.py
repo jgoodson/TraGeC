@@ -10,6 +10,7 @@ import argparse
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import lr_monitor
+from pytorch_lightning.plugins import DDPPlugin
 
 from .registry import registry
 
@@ -68,7 +69,7 @@ def process_trainer_kwargs(args: argparse.Namespace,
         trainer_kwargs['gpus'] = args.n_gpus
         trainer_kwargs['accelerator'] = 'ddp'
         trainer_kwargs['replace_sampler_ddp'] = False
-        trainer_kwargs['plugins'] = []
+        trainer_kwargs['plugins'] = [DDPPlugin(find_unused_parameters=False), ]
         if args.sharded_training:
             trainer_kwargs['plugins'].append('ddp_sharded')
         if args.deepspeed:
