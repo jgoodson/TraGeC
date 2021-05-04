@@ -40,9 +40,7 @@ def process_dataset_kwargs(args: argparse.Namespace) -> typing.Dict:
     return dataset_args
 
 
-def process_trainer_kwargs(args: argparse.Namespace,
-                           exp_name: str,
-                           checkpoint_file: str) -> typing.Dict:
+def process_trainer_kwargs(args: argparse.Namespace) -> typing.Dict:
     trainer_kwargs = {
         'accumulate_grad_batches': args.gradient_accumulation_steps,
         'max_epochs': args.num_train_epochs,
@@ -60,9 +58,9 @@ def process_trainer_kwargs(args: argparse.Namespace,
     if args.fp16:
         trainer_kwargs['precision'] = 16
         trainer_kwargs['amp_backend'] = args.fp16_backend
-    if checkpoint_file:
-        trainer_kwargs['resume_from_checkpoint'] = checkpoint_file
-    trainer_kwargs['logger'] = pl_loggers.TensorBoardLogger(args.log_dir, name=exp_name)
+    if args.checkpoint_file:
+        trainer_kwargs['resume_from_checkpoint'] = args.checkpoint_file
+    trainer_kwargs['logger'] = pl_loggers.TensorBoardLogger(args.log_dir, name=args.exp_name)
     lr_logger = lr_monitor.LearningRateMonitor(logging_interval='step')
     trainer_kwargs['callbacks'] = [lr_logger]
     if not args.no_cuda and args.n_gpus > 1:
@@ -95,6 +93,9 @@ def run_train(args: argparse.Namespace) -> None:
     with (save_path / 'args.json').open('w') as f:
         json.dump(vars(args), f)
 
+    args.save_path = save_path
+    args.exp_name = exp_name
+
     checkpoint_file = args.checkpoint_file
     if args.resume_from_checkpoint:
         if not args.checkpoint_file:
@@ -108,19 +109,21 @@ def run_train(args: argparse.Namespace) -> None:
             else:
                 raise UserWarning('Did not find checkpoint from most recent run. Starting training from scratch.')
 
-    datamodule, model, trainer = prepare_trainer(args, exp_name, checkpoint_file)
+    args.checkpoint_file = checkpoint_file
+
+    datamodule, model, trainer = prepare_trainer(args)
 
     trainer.fit(model=model, datamodule=datamodule)
 
     model.save_pretrained(save_path)
 
 
-def prepare_trainer(args: argparse.Namespace, exp_name: str, checkpoint_file: str):
+def prepare_trainer(args: argparse.Namespace):
     pl.seed_everything(args.seed)
 
     model = registry.get_task_model(model_name=args.model_type,
                                     task_name=args.task,
-                                    checkpoint=checkpoint_file,
+                                    checkpoint=args.checkpoint_file,
                                     config_file=args.model_config_file,
                                     pretrained_model=args.from_pretrained)
 
@@ -147,7 +150,7 @@ def prepare_trainer(args: argparse.Namespace, exp_name: str, checkpoint_file: st
 
     datamodule.distributed = args.n_gpus > 1 or args.use_tpu
 
-    trainer_kwargs = process_trainer_kwargs(args, exp_name, checkpoint_file)
+    trainer_kwargs = process_trainer_kwargs(args)
 
     trainer = pl.Trainer(**trainer_kwargs)
     return datamodule, model, trainer
