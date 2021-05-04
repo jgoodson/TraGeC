@@ -72,8 +72,11 @@ def process_trainer_kwargs(args: argparse.Namespace) -> typing.Dict:
             trainer_kwargs['plugins'].append('ddp_sharded')
         if args.deepspeed:
             trainer_kwargs['plugins'].append('deepspeed')
-    elif not args.no_cuda:
+    elif not args.no_cuda and not args.use_tpu:
         trainer_kwargs['gpus'] = 1
+    elif args.use_tpu:
+        trainer_kwargs['tpu_cores'] = 8
+        trainer_kwargs['accelerator'] = 'ddp_spawn'
     return trainer_kwargs
 
 
