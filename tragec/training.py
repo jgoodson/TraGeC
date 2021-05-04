@@ -93,7 +93,7 @@ def run_train(args: argparse.Namespace) -> None:
 
     save_path.mkdir(parents=True, exist_ok=True)
     with (save_path / 'args.json').open('w') as f:
-        json.dump(args, f)
+        json.dump(vars(args), f)
 
     checkpoint_file = args.checkpoint_file
     if args.resume_from_checkpoint:
