@@ -117,8 +117,14 @@ class BioDataModule(pl.LightningDataModule):
             for split in self.split_names
         }
 
-    def _prep_loader(self, dataset: BioDataset) -> DataLoader:
-        sampler = RandomSampler(dataset) if not self.distributed else DistributedSampler(dataset, )
+    def _prep_loader(self, dataset: BioDataset, use_tpu: bool) -> DataLoader:
+        if not self.distributed:
+            sampler = RandomSampler(dataset)
+        elif use_tpu:
+            import torch_xla.core.xla_model as xm
+            sampler = DistributedSampler(dataset, num_replicas=xm.xrt_world_size(), rank=xm.get_ordinal())
+        else:
+            sampler = DistributedSampler(dataset, )
 
         batch_sampler = BucketBatchSampler(
             sampler, self.batch_size, False, dataset, 10)
@@ -131,8 +137,8 @@ class BioDataModule(pl.LightningDataModule):
         )
         return loader
 
-    def get_dataloader(self, split: str) -> DataLoader:
-        return self._prep_loader(self.splits[split])
+    def get_dataloader(self, split: str, use_tpu: bool = False) -> DataLoader:
+        return self._prep_loader(self.splits[split], use_tpu)
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
         if not self.train_split:
