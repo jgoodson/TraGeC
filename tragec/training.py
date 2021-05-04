@@ -152,6 +152,7 @@ def prepare_trainer(args: argparse.Namespace):
     datamodule = registry.get_task_datamodule(**dataset_kwargs)
 
     datamodule.distributed = args.n_gpus > 1 or args.use_tpu
+    datamodule.xla = args.use_tpu
 
     trainer_kwargs = process_trainer_kwargs(args)
 

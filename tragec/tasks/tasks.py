@@ -91,6 +91,7 @@ class BioDataModule(pl.LightningDataModule):
                  num_workers: int,
                  seqvec_type: typing.Optional[str] = None,
                  tokenizer: typing.Optional[str] = None,
+                 xla: bool = False,
                  **opt_kwargs):
         super().__init__()
         self.batch_size = batch_size
@@ -104,6 +105,7 @@ class BioDataModule(pl.LightningDataModule):
         self.test_split = ''
         self.train_split = ''
         self.val_split = ''
+        self.xla = xla
         for kwarg, val in opt_kwargs.items():
             self.__setattr__(kwarg, val)
 
@@ -117,10 +119,10 @@ class BioDataModule(pl.LightningDataModule):
             for split in self.split_names
         }
 
-    def _prep_loader(self, dataset: BioDataset, use_tpu: bool, test_only: bool) -> DataLoader:
+    def _prep_loader(self, dataset: BioDataset, test_only: bool) -> DataLoader:
         if test_only or not self.distributed:
             sampler = RandomSampler(dataset)
-        elif use_tpu:
+        elif self.xla:
             import torch_xla.core.xla_model as xm
             sampler = DistributedSampler(dataset, num_replicas=xm.xrt_world_size(), rank=xm.get_ordinal())
         else:
@@ -137,8 +139,8 @@ class BioDataModule(pl.LightningDataModule):
         )
         return loader
 
-    def get_dataloader(self, split: str, use_tpu: bool = False, test_only: bool = False) -> DataLoader:
-        return self._prep_loader(self.splits[split], use_tpu, test_only)
+    def get_dataloader(self, split: str, test_only: bool = False) -> DataLoader:
+        return self._prep_loader(self.splits[split], test_only)
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
         if not self.train_split:
