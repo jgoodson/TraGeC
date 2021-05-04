@@ -47,6 +47,8 @@ def create_base_parser() -> argparse.ArgumentParser:
     parser.add_argument('--debug', action='store_true', help='Run in debug mode')
     parser.add_argument('--max_seq_len', default=512, type=int,
                         help="Maximum sequence length for sequence_rep data map (GeC models only)")
+    parser.add_argument('--tokenizer', default='iupac', type=str,
+                        help="Tokenizer for protein sequence embedding (Protein models only)")
     parser.add_argument('--exp_name', default=None, type=str,
                         help='Name to give to this experiment')
     parser.add_argument('--log_dir', default='./logs', type=str)
