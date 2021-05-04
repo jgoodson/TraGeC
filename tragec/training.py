@@ -142,7 +142,7 @@ def prepare_trainer(args: argparse.Namespace):
     # We need to know that to configure our learning rate scheduler, so we have to actually
     # open up the underlying dataset and prepare it to find its length.
     datamodule.setup()
-    model.config.total_steps = int(len(datamodule.train_dataloader()) *
+    model.config.total_steps = int(len(datamodule.train_dataloader(test_only=True)) *
                                    args.num_train_epochs *
                                    args.train_frac /
                                    args.gradient_accumulation_steps)
