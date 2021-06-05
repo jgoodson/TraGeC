@@ -3,7 +3,7 @@ channels:
   - pytorch
   - conda-forge
 dependencies:
-  - python=3.7
+  - python>=3.7
   - boto3=1.17.*
   - requests=2.25.*
   - tqdm=4.61.*
