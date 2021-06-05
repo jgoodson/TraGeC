@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Union, List, Any, Dict, Tuple, Callable, Sequence, Sized, Optional
 
 import lmdb
+import bson
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -146,8 +147,8 @@ class GeCMaskedReconstructionDataset(BioDataset):
         data_file = f'refseq/maps{max_seq_len}/refseq_{split}.lmdb'
         refseq_file = f'refseq/refseq.lmdb'
         seqvec_file = f'seqvec/{seqvec_type}.lmdb'
-        self.data = LMDBDataset(data_path / data_file, )
-        self.refseq = LMDBDataset(data_path / refseq_file, )
+        self.data = LMDBDataset(data_path / data_file, decode_method=bson.decode)
+        self.refseq = LMDBDataset(data_path / refseq_file, decode_method=bson.decode)
         array_decode = partial(np.frombuffer, dtype=dtype)
         self.seqvec = LMDBDataset(data_path / seqvec_file, decode_method=array_decode)
         self.percentmasked = percentmasked
@@ -283,7 +284,7 @@ class GeCClassificationDataset(BioDataset):
         data_path = Path(data_path)
 
         data_file = f'axen/bmcs_{split}.lmdb'
-        self.data = LMDBDataset(data_path / data_file)
+        self.data = LMDBDataset(data_path / data_file, decode_method=bson.decode)
 
     def __len__(self) -> int:
         return len(self.data)
