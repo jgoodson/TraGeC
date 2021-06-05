@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.6, 3.7, 3.8, 3.9]
 
     steps:
     - uses: actions/checkout@v2
@@ -36,7 +36,7 @@ jobs:
         channels: conda-forge,defaults
         channel-priority: true
         activate-environment: anaconda-client-env
-        environment-file: environment_nocuda.yml
+        environment-file: .envs/environment_nocuda.yml
     - name: Debug env
       shell: bash -l {0}
       run: |
@@ -48,13 +48,13 @@ jobs:
     - name: Run unittests
       shell: bash -l {0}
       run: |
-        mamba install coverage
+        mamba install coverage pytest
         coverage run -m pytest
+        coverage xml
     - name: Upload Coverage to Codecov
       uses: codecov/codecov-action@v1
       with:
         token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
         flags: unittests
         name: codecov-pytest
-        fail_ci_if_error: true
         verbose: true
