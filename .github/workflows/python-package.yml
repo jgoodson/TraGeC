@@ -46,5 +46,5 @@ jobs:
         conda config --show
         printenv | sort
     - name: Run unittests
-      run: |
-        python -m unittest
+      shell: bash -l {0}
+      run: python -m unittest
