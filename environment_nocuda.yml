@@ -15,3 +15,4 @@ dependencies:
   - python-lmdb=0.99
   - pymongo=3.11.*
   - pytorch=1.8.*
+  - python-lightning=1.3.*
