@@ -145,7 +145,7 @@ class Registry:
         return cls.metric_name_mapping[name]
 
     @classmethod
-    def get_task_model(cls,
+    def get_task_model(cls, *,
                        model_name: str,
                        task_name: str,
                        checkpoint: Optional[PathType] = None,
@@ -187,7 +187,7 @@ class Registry:
         return model
 
     @classmethod
-    def get_task_datamodule(cls,
+    def get_task_datamodule(cls, *,
                             task_name: str,
                             data_dir: str,
                             batch_size: int,

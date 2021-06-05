@@ -65,7 +65,6 @@ class BioConfig(object):
         self.initializer_range = initializer_range
         self.gene_length_bin_size = gene_length_bin_size
         self.gene_max_length = gene_max_length
-        self.pruned_heads = None
         self.gradient_checkpointing = gradient_checkpointing
         self.max_position_embeddings = max_position_embeddings
         self.sinusoidal_pos_embds = sinusoidal_pos_embds
@@ -85,7 +84,6 @@ class BioConfig(object):
         self.num_labels = kwargs.pop('num_labels', 2)
         self.output_attentions = kwargs.pop('output_attentions', False)
         self.output_hidden_states = kwargs.pop('output_hidden_states', False)
-        self.torchscript = kwargs.pop('torchscript', False)
 
         for k, v in kwargs.items():
             setattr(self, k, v)

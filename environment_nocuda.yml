@@ -1,0 +1,17 @@
+name: tragec
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - python>=3.7
+  - boto3=1.17.*
+  - requests=2.25.*
+  - tqdm=4.61.*
+  - filelock=3.0.*
+  - numpy=1.20.*
+  - scipy=1.6.*
+  - transformers=4.6.1
+  - torch-optimizer>=0.1.0
+  - python-lmdb=0.99
+  - pytorch=1.8.*
+  - pytorch-lightning=1.3.*

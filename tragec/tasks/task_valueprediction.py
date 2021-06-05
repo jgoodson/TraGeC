@@ -29,7 +29,7 @@ class BioSequenceValuePrediction(BioModel):
         super().__init__(config)
 
         self.value_prediction = ValuePredictionHead(
-            config.output_size, config.num_labels)
+            config.output_size)
 
         self.init_weights()
 

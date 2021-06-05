@@ -5,10 +5,12 @@ from pathlib import Path
 import json
 from time import strftime, gmtime
 import random
+import argparse
 
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import lr_monitor
+from pytorch_lightning.plugins import DDPPlugin
 
 from .registry import registry
 
@@ -22,56 +24,84 @@ def generate_expname_and_save_dir(exp_name: typing.Optional[str], task: str, mod
     return exp_name, Path(output_dir) / exp_name
 
 
-def run_train(model_type: str,
-              task: str,
-              learning_rate: float = 1e-4,
-              batch_size: int = 1024,
-              num_train_epochs: int = 10,
-              num_log_iter: int = 20,
-              fp16: bool = False,
-              fp16_backend: str = 'native',
-              warmup_steps: int = 10000,
-              gradient_accumulation_steps: int = 1,
-              exp_name: typing.Optional[str] = None,
-              from_pretrained: typing.Optional[str] = None,
-              checkpoint_file: typing.Optional[str] = None,
-              log_dir: str = './logs',
-              model_config_file: typing.Optional[str] = None,
-              data_dir: str = './data',
-              output_dir: str = './results',
-              use_tpu: bool = True,
-              no_cuda: bool = False,
-              n_gpus: int = 1,
-              max_grad_norm: float = 1.,
-              seed: int = 42,
-              num_workers: int = 8,
-              patience: int = -1,
-              resume_from_checkpoint: bool = False,
-              eval_freq: int = 1,
-              optimizer: str = 'adamw',
-              max_seq_len: int = 512,
-              percentmasked: float = .15,
-              train_frac: float = 1.,
-              val_frac: float = 1.,
-              seqvec_type: str = 'seqvec',
-              fast_dev_run: bool = False,
-              sharded_training: bool = False,
-              deepspeed: bool = False,
-              ) -> None:
-    input_args = locals()
+def process_dataset_kwargs(args: argparse.Namespace) -> typing.Dict:
+    eff_batch_size = args.batch_size // args.gradient_accumulation_steps
 
-    exp_name, save_path = generate_expname_and_save_dir(exp_name, task, model_type, output_dir)
+    dataset_args = {
+        'task_name': args.task,
+        'data_dir': args.data_dir,
+        'batch_size': eff_batch_size,
+        'max_seq_len': args.max_seq_len,
+        'num_workers': args.num_workers,
+        'percentmasked': args.percentmasked,
+        'seqvec_type': args.seqvec_type,
+        'tokenizer': args.tokenizer,
+    }
+    return dataset_args
+
+
+def process_trainer_kwargs(args: argparse.Namespace) -> typing.Dict:
+    trainer_kwargs = {
+        'accumulate_grad_batches': args.gradient_accumulation_steps,
+        'max_epochs': args.num_train_epochs,
+        'log_every_n_steps': args.num_log_iter,
+        'default_root_dir': args.save_path,
+        'limit_train_batches': args.train_frac,
+        'limit_val_batches': args.val_frac,
+        'val_check_interval': args.eval_freq,
+        'gradient_clip_val': args.max_grad_norm,
+        'fast_dev_run': args.fast_dev_run,
+    }
+    if args.patience != -1:
+        es_callback = pl.callbacks.EarlyStopping(monitor='val_loss', patience=args.patience)
+        trainer_kwargs['callbacks'] = [es_callback]
+    if args.fp16:
+        trainer_kwargs['precision'] = 16
+        trainer_kwargs['amp_backend'] = args.fp16_backend
+    if args.checkpoint_file:
+        trainer_kwargs['resume_from_checkpoint'] = args.checkpoint_file
+    trainer_kwargs['logger'] = pl_loggers.TensorBoardLogger(args.log_dir, name=args.exp_name)
+    lr_logger = lr_monitor.LearningRateMonitor(logging_interval='step')
+    trainer_kwargs['callbacks'] = [lr_logger]
+    if not args.no_cuda and args.n_gpus > 1:
+        trainer_kwargs['gpus'] = args.n_gpus
+        trainer_kwargs['accelerator'] = 'ddp'
+        trainer_kwargs['replace_sampler_ddp'] = False
+        trainer_kwargs['plugins'] = [DDPPlugin(find_unused_parameters=False), ]
+        if args.sharded_training:
+            trainer_kwargs['plugins'].append('ddp_sharded')
+        if args.deepspeed:
+            trainer_kwargs['plugins'].append('deepspeed')
+    elif not args.no_cuda and not args.use_tpu:
+        trainer_kwargs['gpus'] = 1
+    elif args.use_tpu:
+        trainer_kwargs['tpu_cores'] = 8
+        trainer_kwargs['accelerator'] = 'ddp_spawn'
+    return trainer_kwargs
+
+
+def run_train(args: argparse.Namespace) -> None:
+    """
+    Runs training using PyTorch-Lightning.
+
+    :param args: A Namespace with matching values to those prepared
+    by the argparse module in main.py.
+    """
+
+    exp_name, save_path = generate_expname_and_save_dir(args.exp_name, args.task, args.model_type, args.output_dir)
+
+    log_dir = args.log_dir
 
     save_path.mkdir(parents=True, exist_ok=True)
     with (save_path / 'args.json').open('w') as f:
-        json.dump(input_args, f)
+        json.dump(vars(args), f)
 
-    optional_dataset_args = {
-        'percentmasked': percentmasked,
-    }
+    args.save_path = save_path
+    args.exp_name = exp_name
 
-    if resume_from_checkpoint:
-        if not checkpoint_file:
+    checkpoint_file = args.checkpoint_file
+    if args.resume_from_checkpoint:
+        if not args.checkpoint_file:
             last_version = sorted([f.split('_')[1] for f in os.listdir(f'{log_dir}/{exp_name}')
                                    if f.startswith('version_')], key=int)[-1]
 
@@ -82,132 +112,96 @@ def run_train(model_type: str,
             else:
                 raise UserWarning('Did not find checkpoint from most recent run. Starting training from scratch.')
 
-    datamodule, model, trainer = prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, fp16,
-                                                 fp16_backend, from_pretrained, gradient_accumulation_steps,
-                                                 learning_rate, log_dir, max_grad_norm, max_seq_len, model_config_file,
-                                                 model_type, n_gpus, no_cuda, num_log_iter, num_train_epochs,
-                                                 num_workers, optimizer, patience, optional_dataset_args, save_path,
-                                                 seed, seqvec_type, task, train_frac, use_tpu, val_frac, warmup_steps,
-                                                 fast_dev_run, sharded_training, deepspeed)
+    args.checkpoint_file = checkpoint_file
+
+    datamodule, model, trainer = prepare_trainer(args)
 
     trainer.fit(model=model, datamodule=datamodule)
 
     model.save_pretrained(save_path)
 
 
-def prepare_trainer(batch_size, checkpoint_file, data_dir, eval_freq, exp_name, fp16, fp16_backend, from_pretrained,
-                    gradient_accumulation_steps, learning_rate, log_dir, max_grad_norm, max_seq_len, model_config_file,
-                    model_type, n_gpus, no_cuda, num_log_iter, num_train_epochs, num_workers, optimizer, patience,
-                    optional_dataset_args, save_path, seed, seqvec_type, task, train_frac, use_tpu, val_frac,
-                    warmup_steps, fast_dev_run, sharded_training, deepspeed):
-    pl.seed_everything(seed)
-    model = registry.get_task_model(model_type, task, checkpoint_file, model_config_file, from_pretrained)
-    datamodule = registry.get_task_datamodule(task, data_dir, batch_size // gradient_accumulation_steps, max_seq_len,
-                                              num_workers, seqvec_type=seqvec_type, tokenizer=model.config.tokenizer,
-                                              **optional_dataset_args)
-    model.config.optimizer = optimizer
-    model.config.learning_rate = learning_rate
-    model.config.warmup_steps = warmup_steps // gradient_accumulation_steps
+def prepare_trainer(args: argparse.Namespace):
+    pl.seed_everything(args.seed)
+
+    model = registry.get_task_model(model_name=args.model_type,
+                                    task_name=args.task,
+                                    checkpoint=args.checkpoint_file,
+                                    config_file=args.model_config_file,
+                                    pretrained_model=args.from_pretrained)
+
+    dataset_kwargs = process_dataset_kwargs(args)
+
+    datamodule = registry.get_task_datamodule(**dataset_kwargs)
+
+    model.config.optimizer = args.optimizer
+    model.config.learning_rate = args.learning_rate
+    model.config.warmup_steps = args.warmup_steps // args.gradient_accumulation_steps
+
+    # The only way to know how many total steps there will be is to interrogate the dataset.
+    # We need to know that to configure our learning rate scheduler, so we have to actually
+    # open up the underlying dataset and prepare it to find its length.
     datamodule.setup()
-    model.config.total_steps = int(len(datamodule.train_dataloader()) *
-                                   num_train_epochs *
-                                   train_frac /
-                                   gradient_accumulation_steps)
+    model.config.total_steps = int(len(datamodule.train_dataloader(test_only=True)) *
+                                   args.num_train_epochs *
+                                   args.train_frac /
+                                   args.gradient_accumulation_steps)
+    # Doing this will break setup of the DataModule during training initialization so we
+    # just start over fresh.
     del datamodule
-    datamodule = registry.get_task_datamodule(task, data_dir, batch_size // gradient_accumulation_steps, max_seq_len,
-                                              num_workers, seqvec_type=seqvec_type, tokenizer=model.config.tokenizer,
-                                              **optional_dataset_args)
-    datamodule.distributed = n_gpus > 1 or use_tpu
-    trainer_kwargs = {
-        'accumulate_grad_batches': gradient_accumulation_steps,
-        'max_epochs': num_train_epochs,
-        'log_every_n_steps': num_log_iter,
-        'default_root_dir': save_path,
-        'limit_train_batches': train_frac,
-        'limit_val_batches': val_frac,
-        'val_check_interval': eval_freq,
-        'gradient_clip_val': max_grad_norm,
-        'fast_dev_run': fast_dev_run,
-    }
-    if patience != -1:
-        es_callback = pl.callbacks.EarlyStopping(monitor='val_loss', patience=patience)
-        trainer_kwargs['callbacks'] = [es_callback]
-    if fp16:
-        trainer_kwargs['precision'] = 16
-        trainer_kwargs['amp_backend'] = fp16_backend
-    if checkpoint_file:
-        trainer_kwargs['resume_from_checkpoint'] = checkpoint_file
-    trainer_kwargs['logger'] = pl_loggers.TensorBoardLogger(log_dir, name=exp_name)
-    lr_logger = lr_monitor.LearningRateMonitor(logging_interval='step')
-    trainer_kwargs['callbacks'] = [lr_logger]
-    if not no_cuda and n_gpus > 1:
-        trainer_kwargs['gpus'] = n_gpus
-        trainer_kwargs['accelerator'] = 'ddp'
-        trainer_kwargs['replace_sampler_ddp'] = False
-        trainer_kwargs['plugins'] = []
-        if sharded_training:
-            trainer_kwargs['plugins'].append('ddp_sharded')
-        if deepspeed:
-            trainer_kwargs['plugins'].append('deepspeed')
-    elif not no_cuda:
-        trainer_kwargs['gpus'] = 1
+    datamodule = registry.get_task_datamodule(**dataset_kwargs)
+
+    datamodule.distributed = args.n_gpus > 1 or args.use_tpu
+    datamodule.xla = args.use_tpu
+
+    trainer_kwargs = process_trainer_kwargs(args)
+
     trainer = pl.Trainer(**trainer_kwargs)
     return datamodule, model, trainer
 
 
-def run_eval(model_type: str,
-             task: str,
-             batch_size: int = 1024,
-             fp16: bool = False,
-             fp16_backend: str = 'native',
-             exp_name: typing.Optional[str] = None,
-             from_pretrained: typing.Optional[str] = None,
-             log_dir: str = './logs',
-             model_config_file: typing.Optional[str] = None,
-             data_dir: str = './data',
-             output_dir: str = './results',
-             use_tpu: bool = True,
-             no_cuda: bool = False,
-             n_gpus: int = 1,
-             seed: int = 42,
-             num_workers: int = 8,
-             max_seq_len: int = 512,
-             val_frac: float = 1.,
-             seqvec_type: str = 'seqvec',
-             metrics: typing.Union[list, tuple] = (),
-             split: typing.Optional[str] = None,
-             ) -> typing.Dict[str, float]:
-    exp_name, save_path = generate_expname_and_save_dir(exp_name, task, model_type, output_dir)
-
-    pl.seed_everything(seed)
-    model = registry.get_task_model(model_type, task, None, model_config_file, from_pretrained)
-
-    datamodule = registry.get_task_datamodule(task, data_dir, batch_size, max_seq_len, num_workers, seqvec_type,
-                                              model.config.tokenizer)
-
-    datamodule.distributed = n_gpus > 1 or use_tpu
-
+def process_eval_kwargs(args: argparse.Namespace, exp_name) -> typing.Dict:
     evaluator_kwargs = {
-        'default_root_dir': save_path,
-        'limit_test_batches': val_frac,
+        'default_root_dir': args.save_path,
+        'limit_test_batches': args.val_frac,
     }
-    if fp16:
+    if args.fp16:
         evaluator_kwargs['precision'] = 16
-        evaluator_kwargs['amp_backend'] = fp16_backend
-    evaluator_kwargs['logger'] = pl_loggers.TensorBoardLogger(log_dir, name=exp_name)
+        evaluator_kwargs['amp_backend'] = args.fp16_backend
+    evaluator_kwargs['logger'] = pl_loggers.TensorBoardLogger(args.log_dir, name=exp_name)
 
-    if not no_cuda and n_gpus > 1:
-        evaluator_kwargs['gpus'] = n_gpus
+    if not args.no_cuda and args.n_gpus > 1:
+        evaluator_kwargs['gpus'] = args.n_gpus
         evaluator_kwargs['accelerator'] = 'ddp'
         evaluator_kwargs['replace_sampler_ddp'] = False
-    elif not no_cuda:
+    elif not args.no_cuda:
         evaluator_kwargs['gpus'] = 1
+
+    return evaluator_kwargs
+
+
+def run_eval(args: argparse.Namespace) -> typing.Dict[str, float]:
+    exp_name, save_path = generate_expname_and_save_dir(args.exp_name, args.task, args.model_type, args.output_dir)
+
+    pl.seed_everything(args.seed)
+    model = registry.get_task_model(model_name=args.model_type,
+                                    task_name=args.task,
+                                    config_file=args.model_config_file,
+                                    pretrained_model=args.from_pretrained)
+
+    dataset_kwargs = process_dataset_kwargs(args)
+
+    datamodule = registry.get_task_datamodule(**dataset_kwargs)
+
+    datamodule.distributed = args.n_gpus > 1 or args.use_tpu
+
+    evaluator_kwargs = process_eval_kwargs(args, exp_name)
 
     trainer = pl.Trainer(**evaluator_kwargs)
 
-    if split:
+    if args.split:
         datamodule.setup()
-        results = trainer.test(model, test_dataloaders=datamodule.get_dataloader(split=split))
+        results = trainer.test(model, test_dataloaders=datamodule.get_dataloader(split=args.split))
     else:
         results = trainer.test(model, datamodule=datamodule)
 

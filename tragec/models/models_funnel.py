@@ -54,16 +54,6 @@ class BioFunnelAbstractModel(BioModel):
     pretrained_model_archive_map = FUNNEL_PRETRAINED_MODEL_ARCHIVE_MAP
     base_model_prefix = "funnel"
 
-    def _init_weights(self, module):
-        """ Initialize the weights """
-        if isinstance(module, (nn.Linear, nn.Embedding)):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
-        elif isinstance(module, LayerNorm):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
-        if isinstance(module, nn.Linear) and module.bias is not None:
-            module.bias.data.zero_()
-
 
 class BioFunnelModel(BioFunnelAbstractModel):
 

@@ -8,9 +8,9 @@ import os
 import typing
 import warnings
 
-from . import training
-from . import utils
-from .registry import registry
+from tragec import training
+from tragec import utils
+from tragec.registry import registry
 
 CallbackList = typing.Sequence[typing.Callable]
 OutputDict = typing.Dict[str, typing.List[typing.Any]]
@@ -47,6 +47,8 @@ def create_base_parser() -> argparse.ArgumentParser:
     parser.add_argument('--debug', action='store_true', help='Run in debug mode')
     parser.add_argument('--max_seq_len', default=512, type=int,
                         help="Maximum sequence length for sequence_rep data map (GeC models only)")
+    parser.add_argument('--tokenizer', default='iupac', type=str,
+                        help="Tokenizer for protein sequence embedding (Protein models only)")
     parser.add_argument('--exp_name', default=None, type=str,
                         help='Name to give to this experiment')
     parser.add_argument('--log_dir', default='./logs', type=str)
@@ -71,7 +73,7 @@ def create_train_parser(base_parser: argparse.ArgumentParser) -> argparse.Argume
                         help='Number of training epochs')
     parser.add_argument('--num_log_iter', default=20, type=int,
                         help='Number of training steps per log iteration')
-    parser.add_argument('--warmup_steps', default=10000, type=int,
+    parser.add_argument('--warmup_steps', default=1, type=int,
                         help='Number of learning rate warmup steps')
     parser.add_argument('--gradient_accumulation_steps', default=1, type=int,
                         help='Number of forward passes to make for each gradient update')
@@ -191,14 +193,7 @@ def run_train(args: typing.Optional[argparse.Namespace] = None, env=None) -> Non
             f"Invalid gradient_accumulation_steps parameter: "
             f"{args.gradient_accumulation_steps}, should be >= 1")
 
-    arg_dict = vars(args)
-    arg_names = inspect.getfullargspec(training.run_train).args
-
-    missing = set(arg_names) - set(arg_dict.keys())
-    if missing:
-        raise RuntimeError(f"Missing arguments: {missing}")
-    train_args = {name: arg_dict[name] for name in arg_names}
-    training.run_train(**train_args)
+    training.run_train(args)
 
 
 # noinspection DuplicatedCode
@@ -213,14 +208,7 @@ def run_eval(args: typing.Optional[argparse.Namespace] = None) -> typing.Dict[st
     if args.local_rank != -1:
         raise ValueError("DLGeC does not support distributed validation pass")
 
-    arg_dict = vars(args)
-    arg_names = inspect.getfullargspec(training.run_eval).args
-
-    missing = set(arg_names) - set(arg_dict.keys())
-    if missing:
-        raise RuntimeError(f"Missing arguments: {missing}")
-    eval_args = {name: arg_dict[name] for name in arg_names}
-    return training.run_eval(**eval_args)
+    return training.run_eval(args)
 
 
 '''

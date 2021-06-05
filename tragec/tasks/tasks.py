@@ -91,6 +91,7 @@ class BioDataModule(pl.LightningDataModule):
                  num_workers: int,
                  seqvec_type: typing.Optional[str] = None,
                  tokenizer: typing.Optional[str] = None,
+                 xla: bool = False,
                  **opt_kwargs):
         super().__init__()
         self.batch_size = batch_size
@@ -104,6 +105,7 @@ class BioDataModule(pl.LightningDataModule):
         self.test_split = ''
         self.train_split = ''
         self.val_split = ''
+        self.xla = xla
         for kwarg, val in opt_kwargs.items():
             self.__setattr__(kwarg, val)
 
@@ -117,8 +119,14 @@ class BioDataModule(pl.LightningDataModule):
             for split in self.split_names
         }
 
-    def _prep_loader(self, dataset: BioDataset) -> DataLoader:
-        sampler = RandomSampler(dataset) if not self.distributed else DistributedSampler(dataset, )
+    def _prep_loader(self, dataset: BioDataset, test_only: bool) -> DataLoader:
+        if test_only or not self.distributed:
+            sampler = RandomSampler(dataset)
+        elif self.xla:
+            import torch_xla.core.xla_model as xm
+            sampler = DistributedSampler(dataset, num_replicas=xm.xrt_world_size(), rank=xm.get_ordinal())
+        else:
+            sampler = DistributedSampler(dataset, )
 
         batch_sampler = BucketBatchSampler(
             sampler, self.batch_size, False, dataset, 10)
@@ -131,20 +139,20 @@ class BioDataModule(pl.LightningDataModule):
         )
         return loader
 
-    def get_dataloader(self, split: str) -> DataLoader:
-        return self._prep_loader(self.splits[split])
+    def get_dataloader(self, split: str, test_only: bool = False) -> DataLoader:
+        return self._prep_loader(self.splits[split], test_only)
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
         if not self.train_split:
             raise AttributeError('train_split attribute has not been set for DataModule subclass')
-        return self.get_dataloader(self.train_split)
+        return self.get_dataloader(self.train_split, **kwargs)
 
     def val_dataloader(self, *args, **kwargs) -> DataLoader:
         if not self.val_split:
             raise AttributeError('val_split attribute has not been set for DataModule subclass')
-        return self.get_dataloader(self.val_split)
+        return self.get_dataloader(self.val_split, **kwargs)
 
     def test_dataloader(self, *args, **kwargs) -> DataLoader:
         if not self.test_split:
             raise AttributeError('test_split attribute has not been set for DataModule subclass')
-        return self.get_dataloader(self.test_split)
+        return self.get_dataloader(self.test_split, **kwargs)
