@@ -47,4 +47,14 @@ jobs:
         printenv | sort
     - name: Run unittests
       shell: bash -l {0}
-      run: python -m unittest
+      run: |
+        mamba install coverage
+        coverage run -m pytest
+    - name: Upload Coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+        flags: unittests
+        name: codecov-pytest
+        fail_ci_if_error: true
+        verbose: true
