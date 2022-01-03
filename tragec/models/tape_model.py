@@ -9,6 +9,7 @@ from transformers.file_utils import cached_path
 from .configuration import BioConfig
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 WEIGHTS_NAME = "pytorch_model.bin"
 
@@ -69,12 +70,26 @@ class TAPEModelMixin(nn.Module):
         return archive_file
 
     @classmethod
+    def _rewrite_state_dict(cls, state_dict: dict):
+        new_keys = {}
+        for key in state_dict.keys():
+            new_keys[key] = cls._rewrite_module_name(key)
+        for old_key, new_key in new_keys.items():
+            if old_key != new_key:
+                state_dict[new_key] = state_dict.pop(old_key)
+
+    @classmethod
+    def _rewrite_module_name(cls, key: str) -> str:
+        return key
+
+    @classmethod
     def from_pretrained(cls,
                         pretrained_model_name_or_path: PathType,
                         config: typing.Optional[BioConfig] = None,
                         state_dict: typing.Optional[typing.Dict] = None,
                         cache_dir: PathType = None,
                         force_download: bool = False,
+                        rewrite_module_names: bool = False,
                         **model_kwargs):
         r"""Instantiate a pretrained pytorch model from a pre-trained model configuration.
 
@@ -128,6 +143,10 @@ class TAPEModelMixin(nn.Module):
             force_download: (`optional`) boolean, default False:
                 Force to (re-)download the model weights and configuration files and override
                 the cached versions if they exists.
+
+            rewrite_module_names: (`optional`) boolean, default False:
+                Re-writes module names to be compatible with slightly-different original TAPE
+                module names.
 
 
             kwargs: (`optional`) Remaining dictionary of keyword arguments:
@@ -204,6 +223,9 @@ class TAPEModelMixin(nn.Module):
         # copy state_dict so _load_from_state_dict can modify it
         metadata = getattr(state_dict, '_metadata', None)
         state_dict = state_dict.copy()
+        if rewrite_module_names:
+            cls._rewrite_state_dict(state_dict)
+
         if metadata is not None:
             state_dict._metadata = metadata
 
