@@ -131,13 +131,12 @@ class BioDataModule(pl.LightningDataModule):
         batch_sampler = BucketBatchSampler(
             sampler, self.batch_size, False, dataset, 10)
 
-        loader = DataLoader(
+        return DataLoader(
             dataset,
             num_workers=self.num_workers,
             collate_fn=dataset.collate_fn,
             batch_sampler=batch_sampler,
         )
-        return loader
 
     def get_dataloader(self, split: str, test_only: bool = False) -> DataLoader:
         return self._prep_loader(self.splits[split], test_only)

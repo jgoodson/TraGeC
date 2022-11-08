@@ -104,7 +104,4 @@ class SequenceToSequenceClassificationHead(nn.Module):
         self._ignore_index = ignore_index
 
     def forward(self, sequence_output, targets=None):
-        sequence_logits = self.classify(sequence_output)
-        outputs = sequence_logits
-
-        return outputs
+        return self.classify(sequence_output)

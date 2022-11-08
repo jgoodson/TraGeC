@@ -104,12 +104,11 @@ class BioConfig(object):
     @classmethod
     def _get_config(cls, pretrained_model_name_or_path):
         if pretrained_model_name_or_path in cls.pretrained_config_archive_map:
-            config_file = cls.pretrained_config_archive_map[pretrained_model_name_or_path]
+            return cls.pretrained_config_archive_map[pretrained_model_name_or_path]
         elif os.path.isdir(pretrained_model_name_or_path):
-            config_file = os.path.join(pretrained_model_name_or_path, CONFIG_NAME)
+            return os.path.join(pretrained_model_name_or_path, CONFIG_NAME)
         else:
-            config_file = pretrained_model_name_or_path
-        return config_file
+            return pretrained_model_name_or_path
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: PathType,
@@ -164,22 +163,23 @@ class BioConfig(object):
             resolved_config_file = cached_path(config_file, cache_dir=cache_dir)
         except EnvironmentError:
             if pretrained_model_name_or_path in cls.pretrained_config_archive_map:
-                logger.error("Couldn't reach server at '{}' to download pretrained model "
-                             "configuration file.".format(config_file))
+                logger.error(
+                    f"Couldn't reach server at '{config_file}' to download pretrained model configuration file."
+                )
+
             else:
                 logger.error(
-                    "Model name '{}' was not found in model name list ({}). "
-                    "We assumed '{}' was a path or url but couldn't find any file "
-                    "associated to this path or url.".format(
-                        pretrained_model_name_or_path,
-                        ', '.join(cls.pretrained_config_archive_map.keys()),
-                        config_file))
+                    f"Model name '{pretrained_model_name_or_path}' was not found in model name list ({', '.join(cls.pretrained_config_archive_map.keys())}). We assumed '{config_file}' was a path or url but couldn't find any file associated to this path or url."
+                )
+
             raise
         if resolved_config_file == config_file:
-            logger.info("loading configuration file {}".format(config_file))
+            logger.info(f"loading configuration file {config_file}")
         else:
-            logger.info("loading configuration file {} from cache at {}".format(
-                config_file, resolved_config_file))
+            logger.info(
+                f"loading configuration file {config_file} from cache at {resolved_config_file}"
+            )
+
 
         # Load config
         config = cls.from_json_file(resolved_config_file)
@@ -215,8 +215,7 @@ class BioConfig(object):
 
     def to_dict(self) -> dict:
         """Serializes this instance to a Python dictionary."""
-        output = copy.deepcopy(self.__dict__)
-        return output
+        return copy.deepcopy(self.__dict__)
 
     def to_json_string(self) -> str:
         """Serializes this instance to a JSON string."""

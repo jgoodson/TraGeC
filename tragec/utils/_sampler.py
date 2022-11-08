@@ -86,9 +86,9 @@ class BucketBatchSampler(BatchSampler):
     def __iter__(self):
         for bucket in self.bucket_sampler:
             sorted_sampler = SortedSampler(self.dataset, indices=bucket)
-            for batch in SubsetRandomSampler(
-                    list(BatchSampler(sorted_sampler, self.batch_size, self.drop_last))):
-                yield batch
+            yield from SubsetRandomSampler(
+                list(BatchSampler(sorted_sampler, self.batch_size, self.drop_last))
+            )
 
     def __len__(self):
         if self.drop_last:

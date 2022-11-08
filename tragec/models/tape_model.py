@@ -62,18 +62,15 @@ class TAPEModelMixin(nn.Module):
     @classmethod
     def _get_model(cls, pretrained_model_name_or_path):
         if pretrained_model_name_or_path in cls.pretrained_model_archive_map:
-            archive_file = cls.pretrained_model_archive_map[pretrained_model_name_or_path]
+            return cls.pretrained_model_archive_map[pretrained_model_name_or_path]
         elif os.path.isdir(pretrained_model_name_or_path):
-            archive_file = os.path.join(pretrained_model_name_or_path, WEIGHTS_NAME)
+            return os.path.join(pretrained_model_name_or_path, WEIGHTS_NAME)
         else:
-            archive_file = pretrained_model_name_or_path
-        return archive_file
+            return pretrained_model_name_or_path
 
     @classmethod
     def _rewrite_state_dict(cls, state_dict: dict):
-        new_keys = {}
-        for key in state_dict.keys():
-            new_keys[key] = cls._rewrite_module_name(key)
+        new_keys = {key: cls._rewrite_module_name(key) for key in state_dict}
         for old_key, new_key in new_keys.items():
             if old_key != new_key:
                 state_dict[new_key] = state_dict.pop(old_key)
@@ -243,20 +240,20 @@ class TAPEModelMixin(nn.Module):
         model_to_load = model
         if cls.base_model_prefix not in (None, ''):
             if not hasattr(model, cls.base_model_prefix) and \
-                    any(s.startswith(cls.base_model_prefix) for s in state_dict.keys()):
-                start_prefix = cls.base_model_prefix + '.'
+                        any(s.startswith(cls.base_model_prefix) for s in state_dict.keys()):
+                start_prefix = f'{cls.base_model_prefix}.'
             if hasattr(model, cls.base_model_prefix) and \
-                    not any(s.startswith(cls.base_model_prefix) for s in state_dict.keys()):
+                        not any(s.startswith(cls.base_model_prefix) for s in state_dict.keys()):
                 model_to_load = getattr(model, cls.base_model_prefix)
 
         load(model_to_load, prefix=start_prefix)
-        if len(missing_keys) > 0:
+        if missing_keys:
             logger.info("Weights of {} not initialized from pretrained model: {}".format(
                 model.__class__.__name__, missing_keys))
-        if len(unexpected_keys) > 0:
+        if unexpected_keys:
             logger.info("Weights from pretrained model not used in {}: {}".format(
                 model.__class__.__name__, unexpected_keys))
-        if len(error_msgs) > 0:
+        if error_msgs:
             raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(
                 model.__class__.__name__, "\n\t".join(error_msgs)))
 

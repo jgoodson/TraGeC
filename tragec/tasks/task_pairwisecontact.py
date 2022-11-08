@@ -92,9 +92,7 @@ class PairwiseContactPredictionHead(nn.Module):
         # 405 AA long, the prediction is 405+cls/sep tokens + 1 pad token but the contact targets tensor is
         # 408 long.
         prediction = prediction[:, 1:-1, 1:-1].contiguous()  # remove start/stop tokens
-        outputs = (prediction,)
-
-        return outputs
+        return (prediction,)
 
     def compute_precision_at_l5(self, sequence_lengths, prediction, labels):
         with torch.no_grad():

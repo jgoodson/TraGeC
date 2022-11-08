@@ -27,7 +27,7 @@ def generate_expname_and_save_dir(exp_name: typing.Optional[str], task: str, mod
 def process_dataset_kwargs(args: argparse.Namespace) -> typing.Dict:
     eff_batch_size = args.batch_size // args.gradient_accumulation_steps
 
-    dataset_args = {
+    return {
         'task_name': args.task,
         'data_dir': args.data_dir,
         'batch_size': eff_batch_size,
@@ -37,7 +37,6 @@ def process_dataset_kwargs(args: argparse.Namespace) -> typing.Dict:
         'seqvec_type': args.seqvec_type,
         'tokenizer': args.tokenizer,
     }
-    return dataset_args
 
 
 def process_trainer_kwargs(args: argparse.Namespace) -> typing.Dict:
@@ -100,17 +99,20 @@ def run_train(args: argparse.Namespace) -> None:
     args.exp_name = exp_name
 
     checkpoint_file = args.checkpoint_file
-    if args.resume_from_checkpoint:
-        if not args.checkpoint_file:
-            last_version = sorted([f.split('_')[1] for f in os.listdir(f'{log_dir}/{exp_name}')
-                                   if f.startswith('version_')], key=int)[-1]
+    if args.resume_from_checkpoint and not args.checkpoint_file:
+        last_version = sorted([f.split('_')[1] for f in os.listdir(f'{log_dir}/{exp_name}')
+                               if f.startswith('version_')], key=int)[-1]
 
-            checkpoints = [f for f in os.listdir(f'{log_dir}/{exp_name}/version_{last_version}/checkpoints')
-                           if f.endswith('.ckpt')]
-            if checkpoints:
-                checkpoint_file = f'{log_dir}/{exp_name}/version_{last_version}/checkpoints/{checkpoints[0]}'
-            else:
-                raise UserWarning('Did not find checkpoint from most recent run. Starting training from scratch.')
+        if checkpoints := [
+            f
+            for f in os.listdir(
+                f'{log_dir}/{exp_name}/version_{last_version}/checkpoints'
+            )
+            if f.endswith('.ckpt')
+        ]:
+            checkpoint_file = f'{log_dir}/{exp_name}/version_{last_version}/checkpoints/{checkpoints[0]}'
+        else:
+            raise UserWarning('Did not find checkpoint from most recent run. Starting training from scratch.')
 
     args.checkpoint_file = checkpoint_file
 
@@ -170,12 +172,13 @@ def process_eval_kwargs(args: argparse.Namespace, exp_name) -> typing.Dict:
         evaluator_kwargs['amp_backend'] = args.fp16_backend
     evaluator_kwargs['logger'] = pl_loggers.TensorBoardLogger(args.log_dir, name=exp_name)
 
-    if not args.no_cuda and args.n_gpus > 1:
-        evaluator_kwargs['gpus'] = args.n_gpus
-        evaluator_kwargs['accelerator'] = 'ddp'
-        evaluator_kwargs['replace_sampler_ddp'] = False
-    elif not args.no_cuda:
-        evaluator_kwargs['gpus'] = 1
+    if not args.no_cuda:
+        if args.n_gpus > 1:
+            evaluator_kwargs['gpus'] = args.n_gpus
+            evaluator_kwargs['accelerator'] = 'ddp'
+            evaluator_kwargs['replace_sampler_ddp'] = False
+        else:
+            evaluator_kwargs['gpus'] = 1
 
     return evaluator_kwargs
 

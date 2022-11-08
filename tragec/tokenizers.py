@@ -131,7 +131,7 @@ class TAPETokenizer:
             raise RuntimeError(f"{self._vocab_type} vocab does not support masking")
 
     def tokenize(self, text: str) -> List[str]:
-        return [x for x in text]
+        return list(text)
 
     def convert_token_to_id(self, token: str) -> int:
         """ Converts a token (str/unicode) in an id using the vocab. """

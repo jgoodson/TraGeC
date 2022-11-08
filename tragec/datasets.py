@@ -144,7 +144,7 @@ class GeCMaskedReconstructionDataset(BioDataset):
 
         data_path = Path(data_path)
         data_file = f'refseq/maps{max_seq_len}/refseq_{split}.lmdb'
-        refseq_file = f'refseq/refseq.lmdb'
+        refseq_file = 'refseq/refseq.lmdb'
         seqvec_file = f'seqvec/{seqvec_type}.lmdb'
         self.data = LMDBDataset(data_path / data_file)
         self.refseq = LMDBDataset(data_path / refseq_file)
@@ -227,10 +227,6 @@ class GeCMaskedReconstructionDataset(BioDataset):
                 elif prob < 0.9:
                     # 10% chance to change to random representation
                     gene_rep = np.random.normal(0, 1, rep_size)
-                else:
-                    # 10% chance to keep current representation
-                    pass
-
                 masked_gene_reps[i] = gene_rep
 
         return np.array(masked_gene_reps), targets
@@ -399,10 +395,6 @@ class ProteinMaskedLanguageModelingDataset(BioDataset):
                     # 10% chance to change to random token
                     token = self.tokenizer.convert_id_to_token(
                         random.randint(0, self.tokenizer.vocab_size - 1))
-                else:
-                    # 10% chance to keep current token
-                    pass
-
                 masked_tokens[i] = token
 
         return masked_tokens, labels
@@ -487,11 +479,11 @@ class ProteinSecondaryStructureDataset(BioDataset):
         input_mask = torch.from_numpy(pad_sequences(input_mask, 0))
         ss_label = torch.from_numpy(pad_sequences(ss_label, -1))
 
-        output = {'sequence_rep': input_ids,
-                  'input_mask': input_mask,
-                  'targets': ss_label}
-
-        return output
+        return {
+            'sequence_rep': input_ids,
+            'input_mask': input_mask,
+            'targets': ss_label,
+        }
 
 
 class ProteinFluorescenceDataset(BioDataset):

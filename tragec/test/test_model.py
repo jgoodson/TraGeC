@@ -32,7 +32,7 @@ class TestGeCBertRaw(unittest.TestCase):
         if strands:
             strands = torch.ones(shape[:-1], dtype=torch.long)
         if lengths:
-            lengths = torch.ones(shape[:-1], dtype=torch.long) * lengths
+            lengths *= torch.ones(shape[:-1], dtype=torch.long)
 
         (seq_output, pooled_output) = self.model(torch.zeros(shape, dtype=torch.float32),
                                                  strands=strands,

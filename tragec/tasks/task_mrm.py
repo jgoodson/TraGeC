@@ -38,9 +38,7 @@ class GeCMaskedRecon(BioModel):
         hidden_states = self.transform(sequence_output)
         hidden_states = self.decoder(hidden_states)
 
-        # add hidden states and attention if they are here
-        output = (hidden_states,) + outputs[2:]
-        return output
+        return (hidden_states,) + outputs[2:]
 
     @staticmethod
     def _compare(results, batch, eps=1e-7):
