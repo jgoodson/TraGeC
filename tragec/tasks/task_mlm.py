@@ -42,8 +42,7 @@ class ProteinMLM(BioModel):
 
         hidden_states = self.transform(sequence_output)
         hidden_states = self.decoder(hidden_states) + self.bias
-        output = (hidden_states,) + outputs[2:]
-        return output
+        return (hidden_states,) + outputs[2:]
 
     def _compare(self, results, batch):
         hidden_states = results[0]

@@ -90,6 +90,4 @@ class SequenceClassificationHead(nn.Module):
         self.classify = SimpleMLP(input_size, 512, num_labels)
 
     def forward(self, pooled_output: torch.Tensor) -> torch.Tensor:
-        logits = self.classify(pooled_output)
-
-        return logits
+        return self.classify(pooled_output)

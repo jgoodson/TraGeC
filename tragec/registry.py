@@ -29,14 +29,13 @@ class TaskSpec(object):
         self.extra_dataset_kwargs = dataset_kwargs or {}
 
     def register_model(self, model_name: str, model_cls: Optional[Type[BioModel]] = None):
-        if model_cls is not None:
-            if model_name in self.models:
-                raise KeyError(
-                    f"A model with name '{model_name}' is already registered for this task")
-            self.models[model_name] = model_cls
-            return model_cls
-        else:
+        if model_cls is None:
             return lambda model_cls: self.register_model(model_name, model_cls)
+        if model_name in self.models:
+            raise KeyError(
+                f"A model with name '{model_name}' is already registered for this task")
+        self.models[model_name] = model_cls
+        return model_cls
 
     def get_model(self, model_name: str) -> Type[BioModel]:
         try:
@@ -72,14 +71,13 @@ class Registry:
             dataset_kwargs (Optional[Dict]): Extra kwargs passed to the dataset constructor
 
         """
-        if datamodule is not None:
-            if models is None:
-                models = {}
-            task_spec = TaskSpec(task_name, datamodule, models, model_kwargs, dataset_kwargs)
-            return cls.register_task_spec(task_name, task_spec).datamodule
-        else:
+        if datamodule is None:
             return lambda datamodule: cls.register_task(task_name, datamodule, models,
                                                         model_kwargs, dataset_kwargs)
+        if models is None:
+            models = {}
+        task_spec = TaskSpec(task_name, datamodule, models, model_kwargs, dataset_kwargs)
+        return cls.register_task_spec(task_name, task_spec).datamodule
 
     @classmethod
     def register_task_spec(cls, task_name: str, task_spec: Optional[TaskSpec] = None):
@@ -87,13 +85,12 @@ class Registry:
             TaskSpec manually, and then register it, feel free to use this method,
             but otherwise it is likely easier to use `registry.register_task`.
         """
-        if task_spec is not None:
-            if task_name in cls.task_name_mapping:
-                raise KeyError(f"A task with name '{task_name}' is already registered")
-            cls.task_name_mapping[task_name] = task_spec
-            return task_spec
-        else:
+        if task_spec is None:
             return lambda task_spec: cls.register_task_spec(task_name, task_spec)
+        if task_name in cls.task_name_mapping:
+            raise KeyError(f"A task with name '{task_name}' is already registered")
+        cls.task_name_mapping[task_name] = task_spec
+        return task_spec
 
     @classmethod
     def register_task_model(cls,
@@ -167,24 +164,25 @@ class Registry:
         model_cls = task_spec.get_model(model_name)
 
         if pretrained_model is not None:
-            model = model_cls.from_pretrained(pretrained_model,
-                                              **task_spec.extra_model_kwargs)
+            return model_cls.from_pretrained(
+                pretrained_model, **task_spec.extra_model_kwargs
+            )
+
+        config_class = model_cls.config_class
+        if config_file is not None:
+            # TODO: consider re-writing the TAPE config base class to work with multiple inheritance
+            with open(config_file, "r", encoding='utf-8') as reader:
+                text = reader.read()
+            config = config_class(**json.loads(text))
         else:
-            config_class = model_cls.config_class
-            if config_file is not None:
-                # TODO: consider re-writing the TAPE config base class to work with multiple inheritance
-                with open(config_file, "r", encoding='utf-8') as reader:
-                    text = reader.read()
-                config = config_class(**json.loads(text))
-            else:
-                config = config_class()
-            for k, v in task_spec.extra_model_kwargs.items():
-                setattr(config, k, v)
-            if checkpoint is not None:
-                model = model_cls.load_from_checkpoint(checkpoint, config=config)
-            else:
-                model = model_cls(config)
-        return model
+            config = config_class()
+        for k, v in task_spec.extra_model_kwargs.items():
+            setattr(config, k, v)
+        return (
+            model_cls.load_from_checkpoint(checkpoint, config=config)
+            if checkpoint is not None
+            else model_cls(config)
+        )
 
     @classmethod
     def get_task_datamodule(cls, *,

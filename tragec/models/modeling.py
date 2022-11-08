@@ -46,11 +46,9 @@ class BioModel(pl.LightningModule, TAPEModelMixin):
         super().__init__()
         if not isinstance(config, BioConfig):
             raise ValueError(
-                "Parameter config in `{}(config)` should be an instance of class "
-                "`BioConfig`. To create a model from a pretrained model use "
-                "`model = {}.from_pretrained(PRETRAINED_MODEL_NAME)`".format(
-                    self.__class__.__name__, self.__class__.__name__
-                ))
+                f"Parameter config in `{self.__class__.__name__}(config)` should be an instance of class `BioConfig`. To create a model from a pretrained model use `model = {self.__class__.__name__}.from_pretrained(PRETRAINED_MODEL_NAME)`"
+            )
+
         # Save config in model
         self.config = config
         self.save_hyperparameters()
@@ -64,17 +62,22 @@ class BioModel(pl.LightningModule, TAPEModelMixin):
         optimizer_grouped_parameters = [
             {
                 "params": [
-                    p for n, p in param_optimizer if not any(nd in n for nd in no_decay)
+                    p
+                    for n, p in param_optimizer
+                    if all(nd not in n for nd in no_decay)
                 ],
                 "weight_decay": 0.01,
             },
             {
                 "params": [
-                    p for n, p in param_optimizer if any(nd in n for nd in no_decay)
+                    p
+                    for n, p in param_optimizer
+                    if any(nd in n for nd in no_decay)
                 ],
                 "weight_decay": 0.0,
             },
         ]
+
         if optimizer == 'adamw':
             optimizer = optim.AdamW(optimizer_grouped_parameters, lr=learning_rate)
         elif optimizer == 'lamb':
@@ -86,8 +89,7 @@ class BioModel(pl.LightningModule, TAPEModelMixin):
             from torch_optimizer import NovoGrad
             optimizer = NovoGrad(optimizer_grouped_parameters, lr=learning_rate)
         elif isinstance(optimizer, str):
-            OPT = getattr(optim, optimizer, False)
-            if OPT:
+            if OPT := getattr(optim, optimizer, False):
                 optimizer = OPT(optimizer_grouped_parameters, lr=learning_rate)
             else:
                 try:
@@ -95,8 +97,7 @@ class BioModel(pl.LightningModule, TAPEModelMixin):
                 except ImportError:
                     raise ImportError(
                         "Specified optimizer {optimizer} is not available and torch_optimizer not available")
-                OPT = getattr(torch_optimizer, optimizer, False)
-                if OPT:
+                if OPT := getattr(torch_optimizer, optimizer, False):
                     optimizer = OPT(optimizer_grouped_parameters, lr=learning_rate)
                 else:
                     raise ImportError("Specified optimizer {optimizer} is not available")

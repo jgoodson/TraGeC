@@ -1,5 +1,6 @@
 """PyTorch BERT model. """
 
+
 from torch import nn
 from transformers import BertModel, BertConfig
 
@@ -9,10 +10,15 @@ from ..tasks.registry import create_and_register_models
 
 URL_PREFIX = "https://models.fire.tryps.in/models/tragec/"
 TAPE_URL_PREFIX = "https://s3.amazonaws.com/songlabdata/proteindata/pytorch-models/"
-BERT_PRETRAINED_MODEL_ARCHIVE_MAP = {'prot-tiny_bert': URL_PREFIX + 'prot-tiny_bert-pytorch_model.bin',
-                                     'bert-base': TAPE_URL_PREFIX + "bert-base-pytorch_model.bin",}
-BERT_PRETRAINED_CONFIG_ARCHIVE_MAP = {'prot-tiny_bert': URL_PREFIX + 'prot-tiny_bert-config.json',
-                                      'bert-base': TAPE_URL_PREFIX + "bert-base-config.json",}
+BERT_PRETRAINED_MODEL_ARCHIVE_MAP = {
+    'prot-tiny_bert': f'{URL_PREFIX}prot-tiny_bert-pytorch_model.bin',
+    'bert-base': f"{TAPE_URL_PREFIX}bert-base-pytorch_model.bin",
+}
+
+BERT_PRETRAINED_CONFIG_ARCHIVE_MAP = {
+    'prot-tiny_bert': f'{URL_PREFIX}prot-tiny_bert-config.json',
+    'bert-base': f"{TAPE_URL_PREFIX}bert-base-config.json",
+}
 
 
 class BioBertConfig(BioConfig, BertConfig):

@@ -52,8 +52,7 @@ class BioSequenceMultiClassification(BioModel):
             'accuracy': accuracy,
             'mean_prob': torch.sigmoid(logits).mean(),
         }
-        loss_and_metrics = (classification_loss, metrics)
-        return loss_and_metrics
+        return classification_loss, metrics
 
 
 def create_multiclass_model(base_cls, base_model, name, seqtype):
@@ -95,9 +94,7 @@ class MultiLabelClassificationHead(nn.Module):
 
     def forward(self, sequence_output):
         logits = self.classify(sequence_output).max(1)[0]
-        outputs = (logits,)
-
-        return outputs  # (loss), logits
+        return (logits,)
 
 
 def scores(y_true: torch.Tensor, y_pred: torch.Tensor) -> torch.Tensor:

@@ -30,10 +30,7 @@ class BioFunnelConfig(BioConfig, FunnelConfig):
         # Adapt comparable argument names from FunnelConfig for consistency with BioBertConfig
 
         self.d_model = hidden_size
-        if block_sizes:
-            self.block_sizes = block_sizes
-        else:
-            self.block_sizes = [num_hidden_layers // 3] * 3
+        self.block_sizes = block_sizes or [num_hidden_layers // 3] * 3
         self.n_head = num_attention_heads
         self.use_cache = False
 

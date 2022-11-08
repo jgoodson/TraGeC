@@ -43,8 +43,12 @@ class T5Stack(T5PreTrainedModel):
         self.embed_tokens = embed_tokens
 
         self.block = nn.ModuleList(
-            [T5Block(config, has_relative_attention_bias=bool(i == 0)) for i in range(config.num_layers)]
+            [
+                T5Block(config, has_relative_attention_bias=i == 0)
+                for i in range(config.num_layers)
+            ]
         )
+
         self.final_layer_norm = T5LayerNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.dropout = nn.Dropout(config.dropout_rate)
 
@@ -102,6 +106,4 @@ class T5Stack(T5PreTrainedModel):
         hidden_states = self.final_layer_norm(hidden_states)
         hidden_states = self.dropout(hidden_states)
 
-        outputs = (hidden_states,)
-
-        return outputs  # last-layer hidden state, (presents,) (all hidden states), (all attentions)
+        return (hidden_states,)
